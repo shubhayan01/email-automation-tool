@@ -1144,42 +1144,128 @@ function parsePastedCsv() {
 }
 
 function parseCsvText(text) {
-  const lines = text.trim().split('\n').filter(l => l.trim());
-  if (lines.length < 2) { alert('CSV must have a header row and at least one data row.'); return; }
-  
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["']/g,''));
-  const emailIdx = headers.findIndex(h => h === 'email' || h === 'email address');
-  const fnIdx = headers.findIndex(h => h === 'first_name' || h === 'firstname' || h === 'first name' || h === 'name');
-  const compIdx = headers.findIndex(h => h === 'company' || h === 'company name' || h === 'organization');
+  // Robust CSV parser that handles quoted fields, commas within quotes, and various line endings
+  function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let insideQuotes = false;
 
-  if (emailIdx === -1) { alert('Could not find an "email" column. Check your CSV header.'); return; }
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"') {
+        if (insideQuotes && nextChar === '"') {
+          // Escaped quote
+          current += '"';
+          i++; // Skip next quote
+        } else {
+          // Toggle quote state
+          insideQuotes = !insideQuotes;
+        }
+      } else if (char === ',' && !insideQuotes) {
+        // Field separator
+        result.push(current.trim().replace(/^"|"$/g, ''));
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    // Add last field
+    result.push(current.trim().replace(/^"|"$/g, ''));
+    return result;
+  }
+
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) { 
+    showToast('❌ CSV must have a header row and at least one data row', 'error');
+    alert('CSV must have a header row and at least one data row.');
+    return; 
+  }
+
+  // Parse header
+  const headerLine = parseCSVLine(lines[0]);
+  const headers = headerLine.map(h => h.toLowerCase().trim().replace(/[^\w\s]/g, ''));
+  
+  const emailIdx = headers.findIndex(h => h === 'email' || h === 'emailaddress' || h === 'email_address');
+  const fnIdx = headers.findIndex(h => h === 'firstname' || h === 'first_name' || h === 'first name' || h === 'name' || h === 'first');
+  const lastNameIdx = headers.findIndex(h => h === 'lastname' || h === 'last_name' || h === 'last name' || h === 'last');
+  const compIdx = headers.findIndex(h => h === 'company' || h === 'company_name' || h === 'company name' || h === 'organization' || h === 'org');
+
+  if (emailIdx === -1) { 
+    showToast('❌ Could not find an "email" column', 'error');
+    alert('Could not find an "email" column. Check your CSV header.\n\nExpected columns: email, first_name, company, last_name');
+    return; 
+  }
 
   const newContacts = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map(c => c.trim().replace(/["']/g,''));
-    const email = cols[emailIdx] || '';
-    if (!email || !email.includes('@')) continue;
-    if (state.contacts.find(c => c.email === email)) continue;
+  let skipCount = 0;
+  let duplicateCount = 0;
 
-    newContacts.push({
-      id: Date.now() + i,
-      email,
-      firstName: fnIdx >= 0 ? (cols[fnIdx] || '') : '',
-      company: compIdx >= 0 ? (cols[compIdx] || '') : '',
-      status: 'new',
-      lastEmailSent: null,
-      lastEmailType: null,
-      step: 0,
-      addedAt: Date.now()
-    });
+  for (let i = 1; i < lines.length; i++) {
+    try {
+      const cols = parseCSVLine(lines[i]);
+      
+      // Validate row has data
+      if (cols.length === 0 || cols.every(c => !c.trim())) {
+        skipCount++;
+        continue;
+      }
+
+      const email = (cols[emailIdx] || '').trim().toLowerCase();
+      
+      // Validate email
+      if (!email || !email.includes('@') || email.length < 5) {
+        skipCount++;
+        continue;
+      }
+
+      // Check for duplicates in current batch
+      if (newContacts.find(c => c.email === email) || state.contacts.find(c => c.email === email)) {
+        duplicateCount++;
+        continue;
+      }
+
+      const firstName = fnIdx >= 0 ? (cols[fnIdx] || '').trim() : '';
+      const lastName = lastNameIdx >= 0 ? (cols[lastNameIdx] || '').trim() : '';
+      const company = compIdx >= 0 ? (cols[compIdx] || '').trim() : '';
+
+      newContacts.push({
+        id: Date.now() + Math.random() * 10000,
+        email,
+        firstName: firstName || lastName || 'Contact',
+        lastName: lastName || '',
+        company,
+        status: 'new',
+        lastEmailSent: null,
+        lastEmailType: null,
+        step: 0,
+        addedAt: Date.now()
+      });
+    } catch(e) {
+      console.error('Error parsing row ' + i + ':', e);
+      skipCount++;
+    }
+  }
+
+  if (newContacts.length === 0) {
+    showToast('❌ No valid contacts found in CSV', 'error');
+    alert('No valid contacts found. Check your CSV format.');
+    return;
   }
 
   state.contacts.push(...newContacts);
   saveState();
   renderContactsTable();
   updateDashboard();
-  addLog('ok', 'Imported ' + newContacts.length + ' contacts (' + state.contacts.length + ' total)');
-  showToast('✓ Imported ' + newContacts.length + ' contacts', 'success');
+
+  let message = `✓ Imported ${newContacts.length} contacts (${state.contacts.length} total)`;
+  if (duplicateCount > 0) message += ` · ${duplicateCount} duplicates skipped`;
+  if (skipCount > 0) message += ` · ${skipCount} invalid rows`;
+
+  addLog('ok', `CSV Import: ${newContacts.length} new contacts, ${duplicateCount} duplicates, ${skipCount} invalid rows`);
+  showToast(message, 'success');
 }
 
 function renderContactsTable() {
