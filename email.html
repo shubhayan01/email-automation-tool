@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Justwords Email Automation</title>
+<style>
+  /* ─── RESET & BASE ─── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f13;
+    --surface: #18181f;
+    --surface2: #21212b;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0f0f5;
+    --muted: #8888a0;
+    --accent: #7c6cfa;
+    --accent2: #a695ff;
+    --green: #3dd68c;
+    --amber: #f59e0b;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --font: 'DM Sans', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.6; min-height: 100vh; }
+  a { color: var(--accent2); }
+
+  /* ─── LAYOUT ─── */
+  .app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .main { padding: 2rem; max-width: 900px; }
+  .sidebar-logo { padding: 1.25rem 1.25rem 1rem; border-bottom: 1px solid var(--border); }
+  .sidebar-logo h1 { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+  .sidebar-logo p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .nav-section { padding: 0.75rem 0; }
+  .nav-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 0 1.25rem 0.4rem; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 0.45rem 1.25rem; font-size: 13px; color: var(--muted); cursor: pointer; border-left: 2px solid transparent; transition: all 0.15s; }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .nav-item.active { color: var(--accent2); border-left-color: var(--accent); background: rgba(124,108,250,0.08); }
+  .nav-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ─── TABS / PAGES ─── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ─── COMMON COMPONENTS ─── */
+  h2 { font-size: 20px; font-weight: 600; color: var(--text); letter-spacing: -0.4px; margin-bottom: 0.25rem; }
+  h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 0.75rem; }
+  .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 1.5rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; }
+  .card-sm { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+  label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  input[type="text"], input[type="email"], input[type="number"], input[type="password"], select, textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 7px;
+    color: var(--text); font-family: var(--font); font-size: 13px; padding: 0.55rem 0.75rem; outline: none; transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 100px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1rem; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; font-family: var(--font); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #6b5ce7; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+  .btn-secondary:hover { background: rgba(255,255,255,0.08); }
+  .btn-danger { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+  .btn-danger:hover { background: rgba(248,113,113,0.25); }
+  .btn-sm { padding: 0.3rem 0.65rem; font-size: 12px; }
+  .flex { display: flex; }
+  .gap-2 { gap: 0.5rem; }
+  .gap-3 { gap: 0.75rem; }
+  .items-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.75rem; }
+  .mb-1 { margin-bottom: 0.5rem; }
+  .mb-2 { margin-bottom: 1rem; }
+  .mb-3 { margin-bottom: 1.5rem; }
+  .mt-2 { margin-top: 1rem; }
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .badge-green { background: rgba(61,214,140,0.15); color: var(--green); }
+  .badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .badge-red { background: rgba(248,113,113,0.15); color: var(--red); }
+  .badge-blue { background: rgba(96,165,250,0.15); color: var(--blue); }
+  .badge-purple { background: rgba(124,108,250,0.15); color: var(--accent2); }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+  .tag { display: inline-block; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: var(--mono); font-size: 11px; color: var(--accent2); }
+  .notice { background: rgba(124,108,250,0.08); border: 1px solid rgba(124,108,250,0.2); border-radius: 8px; padding: 0.85rem 1rem; font-size: 12.5px; color: var(--muted); margin-bottom: 1rem; }
+  .notice strong { color: var(--accent2); }
+  .success-notice { background: rgba(61,214,140,0.08); border: 1px solid rgba(61,214,140,0.2); border-radius: 8px; padding: 0.85rem 1rem; font-size: 12.5px; color: #6ee7b7; margin-bottom: 1rem; }
+  .warning-notice { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 8px; padding: 0.85rem 1rem; font-size: 12.5px; color: #fcd34d; margin-bottom: 1rem; }
+  .hostinger-notice { background: rgba(255,100,50,0.08); border: 1px solid rgba(255,100,50,0.25); border-radius: 8px; padding: 0.85rem 1rem; font-size: 12.5px; color: #fdba74; margin-bottom: 1rem; }
+  .hostinger-notice strong { color: #fb923c; }
+
+  /* ─── STAT CARDS ─── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; }
+  .stat-val { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -1px; line-height: 1; }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .stat-delta { font-size: 11px; color: var(--green); margin-top: 4px; }
+
+  /* ─── TABLE ─── */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--surface); padding: 0.6rem 0.9rem; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  td { padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--border); color: var(--text); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ─── EMAIL PREVIEW ─── */
+  .email-preview { background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 1rem; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; font-family: var(--mono); max-height: 280px; overflow-y: auto; }
+
+  /* ─── FLOW DIAGRAM ─── */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-step { display: flex; align-items: flex-start; gap: 0.75rem; }
+  .flow-line { display: flex; flex-direction: column; align-items: center; width: 28px; flex-shrink: 0; }
+  .flow-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .flow-connector { width: 2px; background: var(--border2); flex: 1; min-height: 24px; margin: 2px 0; }
+  .flow-branch { border: 1px dashed var(--border2); border-radius: 8px; padding: 0.75rem; margin: 0.5rem 0 0.5rem 2.5rem; font-size: 12.5px; color: var(--muted); }
+  .flow-content { padding-bottom: 0; margin-bottom: 0.4rem; }
+  .flow-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .flow-desc { font-size: 12px; color: var(--muted); }
+
+  /* ─── UPLOAD ZONE ─── */
+  .upload-zone { border: 2px dashed var(--border2); border-radius: 10px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.15s; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(124,108,250,0.05); }
+  .upload-zone p { color: var(--muted); font-size: 13px; margin-top: 0.5rem; }
+  .upload-zone .upload-icon { font-size: 32px; margin-bottom: 0.5rem; }
+
+  /* ─── ATTACHMENT ZONE (compact, per-template) ─── */
+  .attach-zone { border: 1.5px dashed var(--border2); border-radius: 8px; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; cursor: pointer; transition: all 0.15s; background: transparent; }
+  .attach-zone:hover { border-color: var(--accent); background: rgba(124,108,250,0.04); }
+  .attach-zone-icon { font-size: 18px; flex-shrink: 0; }
+  .attach-zone-text { font-size: 12px; color: var(--muted); flex: 1; }
+  .attach-zone-text strong { color: var(--text); font-size: 12px; }
+  .attach-list { display: flex; flex-direction: column; gap: 4px; margin-top: 0.5rem; }
+  .attach-item { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; font-size: 12px; }
+  .attach-item .attach-name { flex: 1; color: var(--text); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
+  .attach-item .attach-size { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+  .attach-item .attach-remove { color: var(--red); cursor: pointer; font-size: 14px; line-height: 1; flex-shrink: 0; opacity: 0.7; }
+  .attach-item .attach-remove:hover { opacity: 1; }
+  .attach-summary { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .attach-warning { font-size: 11px; color: var(--amber); margin-top: 4px; }
+
+  /* ─── PROGRESS ─── */
+  .progress-bar { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width 0.4s; }
+
+  /* ─── TOGGLE ─── */
+  .toggle { position: relative; display: inline-block; width: 36px; height: 20px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--surface2); border: 1px solid var(--border2); border-radius: 20px; transition: 0.2s; }
+  .toggle-slider::before { content: ''; position: absolute; height: 14px; width: 14px; left: 2px; bottom: 2px; background: var(--muted); border-radius: 50%; transition: 0.2s; }
+  .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: #fff; }
+
+  /* ─── LOG ─── */
+  .log-list { list-style: none; font-size: 12px; font-family: var(--mono); }
+  .log-list li { padding: 3px 0; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .log-list li span.ok { color: var(--green); }
+  .log-list li span.err { color: var(--red); }
+  .log-list li span.info { color: var(--blue); }
+  .log-list li span.warn { color: var(--amber); }
+
+  /* ─── ACCORDION ─── */
+  .accordion-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem; overflow: hidden; }
+  .accordion-head { padding: 0.75rem 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: var(--surface); font-size: 13px; font-weight: 500; }
+  .accordion-head:hover { background: var(--surface2); }
+  .accordion-body { padding: 0 1rem 1rem; display: none; }
+  .accordion-body.open { display: block; }
+  .accordion-arrow { font-size: 10px; color: var(--muted); transition: transform 0.2s; }
+  .accordion-arrow.open { transform: rotate(180deg); }
+
+  /* ─── PROVIDER CARD HIGHLIGHT ─── */
+  .card-sm.recommended { border-color: rgba(255,100,50,0.4); background: rgba(255,100,50,0.06); }
+  .card-sm.recommended .provider-label { color: #fb923c; font-weight: 700; }
+
+  /* ─── CC/BCC TOGGLE ROW ─── */
+  .cc-bcc-toggle { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .cc-bcc-toggle button { background: none; border: 1px solid var(--border2); color: var(--muted); border-radius: 5px; padding: 2px 10px; font-size: 12px; cursor: pointer; transition: all 0.15s; font-family: var(--font); }
+  .cc-bcc-toggle button:hover, .cc-bcc-toggle button.active { border-color: var(--accent); color: var(--accent2); background: rgba(124,108,250,0.08); }
+  .cc-bcc-row { display: none; margin-bottom: 0.75rem; }
+  .cc-bcc-row.visible { display: block; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="app">
+  <!-- ─── SIDEBAR ─── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <h1>⚡ EmailFlow</h1>
+      <p>Justwords Outreach Automation</p>
+    </div>
+    <nav>
+      <div class="nav-section">
+        <div class="nav-label">Overview</div>
+        <div class="nav-item active" onclick="showPage('dashboard')">
+          <div class="nav-dot" style="background:#7c6cfa"></div> Dashboard
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Setup</div>
+        <div class="nav-item" onclick="showPage('smtp')">
+          <div class="nav-dot" style="background:#60a5fa"></div> SMTP Config
+        </div>
+        <div class="nav-item" onclick="showPage('contacts')">
+          <div class="nav-dot" style="background:#3dd68c"></div> Contacts / CSV
+        </div>
+        <div class="nav-item" onclick="showPage('templates')">
+          <div class="nav-dot" style="background:#f59e0b"></div> Email Templates
+        </div>
+        <div class="nav-item" onclick="showPage('sequences')">
+          <div class="nav-dot" style="background:#f87171"></div> Sequences &amp; Timing
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Run</div>
+        <div class="nav-item" onclick="showPage('launch')">
+          <div class="nav-dot" style="background:#a695ff"></div> Launch Campaign
+        </div>
+        <div class="nav-item" onclick="showPage('tracker')">
+          <div class="nav-dot" style="background:#3dd68c"></div> Contact Tracker
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Help</div>
+        <div class="nav-item" onclick="showPage('guide')">
+          <div class="nav-dot" style="background:#8888a0"></div> Setup Guide
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- ─── MAIN ─── -->
+  <main class="main">
+
+    <!-- ═══════════════ DASHBOARD ═══════════════ -->
+    <div class="page active" id="page-dashboard">
+      <h2>Dashboard</h2>
+      <p class="subtitle">Outreach campaign overview</p>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-val" id="stat-total">0</div>
+          <div class="stat-label">Total contacts</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="stat-sent">0</div>
+          <div class="stat-label">Emails sent</div>
+          <div class="stat-delta" id="stat-sent-delta"></div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="stat-interested">0</div>
+          <div class="stat-label">Showed interest</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="stat-closed">0</div>
+          <div class="stat-label">Closed / done</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Automation Flow</h3>
+        <div class="flow" id="flow-diagram">
+          <div class="flow-step">
+            <div class="flow-line">
+              <div class="flow-dot" style="background:var(--accent);color:#fff">1</div>
+              <div class="flow-connector"></div>
+            </div>
+            <div class="flow-content">
+              <div class="flow-title">📤 Generic Intro Email <span class="badge badge-purple">Day 0</span></div>
+              <div class="flow-desc">Sent to all contacts on CSV import</div>
+            </div>
+          </div>
+          <div style="margin-left:1.75rem; margin-bottom:0.75rem;">
+            <div class="flow-branch">
+              <strong style="color:var(--green)">✓ Books a call →</strong> Call Confirmation Email sent immediately → After call: Post-Call Next Steps email → Closing / Thank You email
+            </div>
+            <div class="flow-branch">
+              <strong style="color:var(--amber)">⏳ No response →</strong> Follow-up #1 after <span id="fd-fu1">15</span> days → Follow-up #2 after <span id="fd-fu2">30</span> days → Value-add email at <span id="fd-val">45</span> days → Closing email
+            </div>
+            <div class="flow-branch">
+              <strong style="color:var(--red)">✗ Not interested →</strong> Graceful Exit email sent immediately
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="flex items-center justify-between mb-2">
+          <h3 style="margin:0">Recent Activity Log</h3>
+          <button class="btn btn-secondary btn-sm" onclick="clearLog()">Clear</button>
+        </div>
+        <ul class="log-list" id="activity-log">
+          <li><span class="info">[INFO]</span> System ready. Import contacts and configure SMTP to begin.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ═══════════════ SMTP CONFIG ═══════════════ -->
+    <div class="page" id="page-smtp">
+      <h2>SMTP Configuration</h2>
+      <p class="subtitle">Connect your email sender account</p>
+
+      <div class="hostinger-notice">
+        <strong>🟠 Hostinger detected:</strong> Use host <strong>smtp.hostinger.com</strong>, port <strong>465</strong> (SSL) or port <strong>587</strong> (TLS). Use your full Hostinger email address as the username and your <strong>email account password</strong> (not your hPanel login password). Click the Hostinger preset below to auto-fill.
+      </div>
+
+      <div class="notice">
+        <strong>Other providers:</strong> Gmail requires an App Password (Google Account → Security → 2-Step Verification → App Passwords). Outlook/365 uses regular credentials with SMTP enabled.
+      </div>
+
+      <div class="card">
+        <div class="grid-2 mb-2">
+          <div>
+            <label>SMTP Host</label>
+            <input type="text" id="smtp-host" placeholder="smtp.hostinger.com" value="smtp.hostinger.com">
+          </div>
+          <div>
+            <label>SMTP Port</label>
+            <input type="number" id="smtp-port" placeholder="465" value="465">
+          </div>
+        </div> 
+
+        
+        <div class="mb-2">
+          <label>SSL / Security Mode</label>
+          <select id="smtp-secure">
+            <option value="ssl" selected>Port 465 — SSL (recommended for Hostinger)</option>
+            <option value="tls">Port 587 — STARTTLS (TLS)</option>
+          </select>
+        </div>
+        <div class="grid-2 mb-2">
+          <div>
+            <label>Your Email (From Address)</label>
+            <input type="email" id="smtp-user" placeholder="akshat.raj@justwords.in">
+          </div>
+          <div>
+            <label>Email Account Password</label>
+            <input type="password" id="smtp-pass" placeholder="Your Hostinger email password">
+          </div>
+        </div>
+        <div class="mb-2">
+          <label>Display Name (From Name)</label>
+          <input type="text" id="smtp-name" placeholder="Akshat Raj" value="Akshat Raj">
+        </div>
+        <div class="mb-2">
+          <label>Reply-To Email (optional)</label>
+          <input type="email" id="smtp-reply" placeholder="akshat.raj@justwords.in">
+        </div>
+
+        <!-- ── GLOBAL CC / BCC ── -->
+        <div style="border-top:1px solid var(--border);padding-top:1rem;margin-top:0.25rem;margin-bottom:1rem">
+          <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.6rem">
+            Global CC / BCC <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:11px">(applied to every email sent by this tool)</span>
+          </div>
+          <div class="grid-2 mb-2">
+            <div>
+              <label>CC (comma-separated)</label>
+              <input type="text" id="smtp-cc" placeholder="cc1@example.com, cc2@example.com">
+            </div>
+            <div>
+              <label>BCC (comma-separated)</label>
+              <input type="text" id="smtp-bcc" placeholder="bcc@example.com">
+            </div>
+          </div>
+          <p style="font-size:11.5px;color:var(--muted)">These addresses will be CC'd / BCC'd on every outreach email. Useful for keeping a team member or CRM in the loop.</p>
+        </div>
+
+        <div class="flex gap-2">
+          <button class="btn btn-primary" onclick="saveSmtp()">💾 Save Configuration</button>
+          <button class="btn btn-secondary" onclick="testSmtp()">🔌 Test Connection</button>
+        </div>
+        <div id="smtp-status" class="mt-2"></div>
+      </div>
+
+      <div class="card">
+        <h3>SMTP Provider Presets</h3>
+        <div class="grid-4">
+          <div class="card-sm recommended" style="cursor:pointer" onclick="fillSmtp('smtp.hostinger.com','465','ssl')">
+            <div class="provider-label" style="font-size:13px">🟠 Hostinger</div>
+            <div style="color:var(--muted);font-size:12px">smtp.hostinger.com</div>
+            <div style="color:var(--muted);font-size:12px">Port 465 · SSL</div>
+            <div style="margin-top:4px"><span class="badge badge-amber">Recommended</span></div>
+          </div>
+          <div class="card-sm" style="cursor:pointer" onclick="fillSmtp('smtp.gmail.com','587','tls')">
+            <div style="font-weight:600;font-size:13px">Gmail</div>
+            <div style="color:var(--muted);font-size:12px">smtp.gmail.com</div>
+            <div style="color:var(--muted);font-size:12px">Port 587 · TLS</div>
+          </div>
+          <div class="card-sm" style="cursor:pointer" onclick="fillSmtp('smtp.office365.com','587','tls')">
+            <div style="font-weight:600;font-size:13px">Outlook / 365</div>
+            <div style="color:var(--muted);font-size:12px">smtp.office365.com</div>
+            <div style="color:var(--muted);font-size:12px">Port 587 · TLS</div>
+          </div>
+          <div class="card-sm" style="cursor:pointer" onclick="fillSmtp('smtp.zoho.com','465','ssl')">
+            <div style="font-weight:600;font-size:13px">Zoho Mail</div>
+            <div style="color:var(--muted);font-size:12px">smtp.zoho.com</div>
+            <div style="color:var(--muted);font-size:12px">Port 465 · SSL</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ CONTACTS ═══════════════ -->
+    <div class="page" id="page-contacts">
+      <h2>Contacts / CSV Import</h2>
+      <p class="subtitle">Upload your prospect list</p>
+
+      <div class="notice">
+        <strong>CSV Format:</strong> Your file needs these columns (header row required): <span class="tag">email</span> <span class="tag">first_name</span> — optional: <span class="tag">company</span> <span class="tag">last_name</span>. Column names are case-insensitive.
+      </div>
+
+      <div class="card">
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('csv-input').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <div class="upload-icon">📂</div>
+          <strong style="font-size:14px">Click to upload CSV</strong>
+          <p>or drag and drop your file here</p>
+          <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleCsvUpload(event)">
+        </div>
+
+        <div class="mt-2">
+          <label>Or paste CSV data directly</label>
+          <textarea id="csv-paste" placeholder="email,first_name,company&#10;john@example.com,John,Acme Corp&#10;sarah@company.com,Sarah,XYZ Ltd" style="min-height:90px;font-family:var(--mono);font-size:12px"></textarea>
+          <button class="btn btn-secondary btn-sm mt-2" onclick="parsePastedCsv()" style="margin-top:0.5rem">Parse Pasted Data</button>
+        </div>
+      </div>
+
+      <div id="contacts-preview" style="display:none">
+        <div class="flex items-center justify-between mb-2">
+          <h3 style="margin:0">Imported Contacts (<span id="contacts-count">0</span>)</h3>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary btn-sm" onclick="addContactManual()">+ Add Manually</button>
+            <button class="btn btn-danger btn-sm" onclick="clearContacts()">🗑 Clear All</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Email</th><th>First Name</th><th>Company</th><th>Status</th><th>Action</th></tr>
+            </thead>
+            <tbody id="contacts-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ TEMPLATES ═══════════════ -->
+    <div class="page" id="page-templates">
+      <h2>Email Templates</h2>
+      <p class="subtitle">Customize all emails. Use <span class="tag">{{First Name}}</span> as placeholder. Each template can have its own attachments.</p>
+
+      <div class="notice" style="margin-bottom:1rem">
+        <strong>📎 Attachments:</strong> Files are stored in your browser session only and must be re-uploaded each time you open the app. The backend server (<span style="font-family:var(--mono);font-size:11px">server.js</span>) handles the actual file sending. Max recommended size per template: <strong>10 MB total</strong>.
+      </div>
+
+      <div id="templates-list"></div>
+
+      <button class="btn btn-primary" onclick="saveTemplates()">💾 Save All Templates</button>
+    </div>
+
+    <!-- ═══════════════ SEQUENCES ═══════════════ -->
+    <div class="page" id="page-sequences">
+      <h2>Sequences &amp; Timing</h2>
+      <p class="subtitle">Control when follow-ups are sent</p>
+
+      <div class="card">
+        <h3>Follow-up Delays (days after previous email)</h3>
+        <div class="grid-2 mb-2">
+          <div>
+            <label>Follow-up #1 — delay (days)</label>
+            <input type="number" id="seq-fu1" value="15" min="1">
+          </div>
+          <div>
+            <label>Follow-up #2 — delay from FU1 (days)</label>
+            <input type="number" id="seq-fu2" value="15" min="1">
+          </div>
+        </div>
+        <div class="grid-2 mb-2">
+          <div>
+            <label>Value-add email — delay from FU2 (days)</label>
+            <input type="number" id="seq-val" value="15" min="1">
+          </div>
+          <div>
+            <label>Closing email — delay from Value-add (days)</label>
+            <input type="number" id="seq-close" value="7" min="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Send Rate Limiting</h3>
+        <div class="grid-2 mb-2">
+          <div>
+            <label>Max emails per batch</label>
+            <input type="number" id="seq-batch" value="50" min="1" max="500">
+          </div>
+          <div>
+            <label>Delay between emails (seconds)</label>
+            <input type="number" id="seq-delay" value="3" min="1" max="60">
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--muted)">Keep batch size ≤50 and delay ≥3s to avoid spam filters and rate limits. Hostinger allows up to 500 emails/day on most plans.</p>
+      </div>
+
+      <div class="card">
+        <h3>Call Booking Detection</h3>
+        <div class="notice" style="margin-bottom:0.75rem">
+          <strong>How it works:</strong> The app cannot auto-detect calendar bookings. When a prospect books a call (via your cal.com link), come to the Contact Tracker and manually mark them as "Booked Call". The correct follow-up sequence will activate.
+        </div>
+        <div class="mb-2">
+          <label>Your Booking Link (shown in emails)</label>
+          <input type="text" id="booking-link" value="http://cal.com/akshat-raj-justwords/">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="saveSequences()">💾 Save Settings</button>
+    </div>
+
+    <!-- ═══════════════ LAUNCH ═══════════════ -->
+    <div class="page" id="page-launch">
+      <h2>Launch Campaign</h2>
+      <p class="subtitle">Send initial outreach emails to all new contacts</p>
+
+      <div class="card">
+        <h3>Pre-launch Checklist</h3>
+        <div id="preflight-list" style="font-size:13px;line-height:2"></div>
+      </div>
+
+      <div class="card">
+        <h3>Per-Email CC / BCC Override</h3>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:0.75rem">Override the global CC/BCC for this specific campaign send. Leave blank to use the global settings configured in SMTP Config.</p>
+        <div class="cc-bcc-toggle">
+          <button id="btn-show-cc" onclick="toggleCcBcc('cc')" class="">+ CC</button>
+          <button id="btn-show-bcc" onclick="toggleCcBcc('bcc')" class="">+ BCC</button>
+        </div>
+        <div class="cc-bcc-row" id="launch-cc-row">
+          <label>CC Override (comma-separated)</label>
+          <input type="text" id="launch-cc" placeholder="cc@example.com, another@example.com">
+        </div>
+        <div class="cc-bcc-row" id="launch-bcc-row">
+          <label>BCC Override (comma-separated)</label>
+          <input type="text" id="launch-bcc" placeholder="bcc@example.com">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Send Preview</h3>
+        <div class="mb-2">
+          <label>Preview email for contact</label>
+          <select id="preview-contact" onchange="updatePreview()">
+            <option value="">— Select a contact —</option>
+          </select>
+        </div>
+        <div id="email-preview-box" class="email-preview" style="display:none"></div>
+      </div>
+
+      <div class="card">
+        <h3>Launch Options</h3>
+        <div class="flex items-center gap-3 mb-2">
+          <label class="toggle"><input type="checkbox" id="test-mode" checked><span class="toggle-slider"></span></label>
+          <div>
+            <div style="font-size:13px;font-weight:500">Test Mode</div>
+            <div style="font-size:12px;color:var(--muted)">Sends only to your own email address (uses first contact's name as preview)</div>
+          </div>
+        </div>
+        <div class="mb-2" id="test-addr-wrap">
+          <label>Test send-to address</label>
+          <input type="email" id="test-addr" placeholder="your@email.com">
+        </div>
+        <div id="launch-progress" style="display:none" class="mb-2">
+          <div class="flex justify-between mb-1">
+            <span style="font-size:12px;color:var(--muted)">Sending…</span>
+            <span style="font-size:12px;color:var(--muted)" id="launch-prog-text">0 / 0</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="launch-prog-bar" style="width:0%"></div></div>
+        </div>
+        <button class="btn btn-primary" onclick="launchCampaign()">🚀 Send Intro Emails</button>
+        <span id="launch-result" style="font-size:13px;margin-left:1rem"></span>
+      </div>
+    </div>
+
+    <!-- ═══════════════ TRACKER ═══════════════ -->
+    <div class="page" id="page-tracker">
+      <h2>Contact Tracker</h2>
+      <p class="subtitle">Update statuses and trigger the right follow-up sequence</p>
+
+      <div class="notice">
+        Update each contact's status here after you receive responses or after calls happen. The app will queue and send the correct next email.
+      </div>
+
+      <div class="flex gap-2 mb-2" id="filter-bar">
+        <button class="btn btn-secondary btn-sm active-filter" data-filter="all" onclick="filterTracker('all',this)">All</button>
+        <button class="btn btn-secondary btn-sm" data-filter="new" onclick="filterTracker('new',this)">New</button>
+        <button class="btn btn-secondary btn-sm" data-filter="contacted" onclick="filterTracker('contacted',this)">Contacted</button>
+        <button class="btn btn-secondary btn-sm" data-filter="booked" onclick="filterTracker('booked',this)">Booked</button>
+        <button class="btn btn-secondary btn-sm" data-filter="followup" onclick="filterTracker('followup',this)">Follow-up</button>
+        <button class="btn btn-secondary btn-sm" data-filter="closed" onclick="filterTracker('closed',this)">Closed</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Status</th><th>Last Email</th><th>Next Action</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="tracker-table"></tbody>
+        </table>
+      </div>
+      <div id="tracker-empty" style="text-align:center;padding:2rem;color:var(--muted);font-size:13px">No contacts yet. Import from the Contacts tab first.</div>
+
+      <div class="mt-2 flex gap-2">
+        <button class="btn btn-primary" onclick="runDueFollowups()">⚡ Send Due Follow-ups</button>
+        <button class="btn btn-secondary" onclick="exportTrackerCsv()">📥 Export Status CSV</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════ GUIDE ═══════════════ -->
+    <div class="page" id="page-guide">
+      <h2>Setup Guide</h2>
+      <p class="subtitle">Get up and running in 5 minutes</p>
+
+      <div class="accordion-item">
+        <div class="accordion-head" onclick="toggleAccordion(this)">
+          <span>Step 1 — Configure SMTP (Hostinger)</span><span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body open">
+          <div class="hostinger-notice" style="margin-top:0.75rem;margin-bottom:0.75rem">
+            🟠 <strong>Hostinger Email setup</strong>
+          </div>
+          <ol style="padding-left:1.25rem;font-size:13px;line-height:2;color:var(--muted)">
+            <li>Log in to <strong style="color:var(--text)">hPanel</strong> (hpanel.hostinger.com) → Emails → Manage</li>
+            <li>Create an email account if you haven't already (e.g. <span class="tag">akshat.raj@justwords.in</span>)</li>
+            <li>Go to <strong style="color:var(--text)">SMTP Config</strong> in the sidebar and click the <strong style="color:#fb923c">Hostinger preset</strong></li>
+            <li>Enter your full email address as the username</li>
+            <li>Enter the <strong style="color:var(--text)">email account password</strong> (set in hPanel — NOT your hPanel login password)</li>
+            <li>Use port <span class="tag">465</span> with SSL (pre-filled by the preset)</li>
+            <li>Optionally set global CC/BCC addresses (e.g. a CRM inbox)</li>
+            <li>Click <strong style="color:var(--text)">Test Connection</strong> to verify</li>
+          </ol>
+          <div class="warning-notice" style="margin-top:0.75rem">
+            ⚠️ This tool sends emails directly from your browser via a local backend server. You need server.js running. See "Running the Backend" below.
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <div class="accordion-head" onclick="toggleAccordion(this)">
+          <span>Step 2 — Prepare your CSV</span><span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:0.75rem">Your CSV must have at least these two columns:</p>
+          <div class="email-preview" style="min-height:unset;padding:0.75rem">email,first_name,company
+john.doe@acme.com,John,Acme Corp
+sarah@xyz.com,Sarah,XYZ Ltd
+ceo@startup.io,Rahul,StartupIO</div>
+          <p style="font-size:12px;color:var(--muted);margin-top:0.75rem">Save as .csv (UTF-8). Column order doesn't matter. Extra columns are ignored.</p>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <div class="accordion-head" onclick="toggleAccordion(this)">
+          <span>Step 3 — Customize templates &amp; attachments</span><span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+          <p style="font-size:13px;color:var(--muted)">Go to <strong style="color:var(--text)">Email Templates</strong>. All templates are pre-filled from your Justwords document. Edit subject lines and body text as needed. Use <span class="tag">{{First Name}}</span> for personalization. Each template has its own <strong style="color:var(--text)">attachment section</strong> — upload a corporate deck, brochure, or any file to attach only to that specific email. Attachments are stored in-memory and must be re-uploaded each session.</p>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <div class="accordion-head" onclick="toggleAccordion(this)">
+          <span>Step 4 — Set timing &amp; launch</span><span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+          <p style="font-size:13px;color:var(--muted)">Adjust follow-up delays in <strong style="color:var(--text)">Sequences &amp; Timing</strong>. Then go to <strong style="color:var(--text)">Launch Campaign</strong>. You can set per-send CC/BCC overrides here. Always send a test email first (Test Mode is on by default). Once satisfied, turn off test mode and launch.</p>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <div class="accordion-head" onclick="toggleAccordion(this)">
+          <span>Step 5 — Manage responses &amp; follow-ups</span><span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:0.5rem">Use the <strong style="color:var(--text)">Contact Tracker</strong> to update statuses:</p>
+          <ul style="font-size:13px;color:var(--muted);padding-left:1.25rem;line-height:2">
+            <li><strong style="color:var(--green)">Booked Call</strong> → sends Call Confirmation email immediately</li>
+            <li><strong style="color:var(--blue)">Call Done</strong> → sends Post-Call Next Steps email</li>
+            <li><strong style="color:var(--red)">Not Interested</strong> → sends Graceful Exit email</li>
+            <li><strong style="color:var(--amber)">No Response</strong> → follow-ups queue automatically based on timing</li>
+          </ul>
+          <p style="font-size:13px;color:var(--muted);margin-top:0.5rem">Click <strong style="color:var(--text)">Send Due Follow-ups</strong> each day (or schedule it) to send pending follow-ups.</p>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <div class="accordion-head" onclick="toggleAccordion(this)">
+          <span>Running the backend (Node.js server)</span><span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:0.75rem">This HTML file includes a complete backend script. To run it:</p>
+          <div class="email-preview" style="min-height:unset;font-size:12px">
+  # 1. Install Node.js (nodejs.org) if not already installed
+  # 2. Install dependencies
+  npm install nodemailer express cors
+
+  # 3. Download server.js using the button below
+  # 4. Run it
+  node server.js
+
+  # Server starts on http://localhost:3333
+  # Open this HTML file in your browser — it connects to the server automatically
+          </div>
+          <button class="btn btn-secondary btn-sm" style="margin-top:0.75rem" onclick="downloadServer()">📥 Download server.js</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// ATTACHMENT STORE (in-memory, keyed by template key)
+// Files cannot be serialized to localStorage — users must re-upload each session.
+// ═══════════════════════════════════════════════
+const attachmentStore = {}; // { templateKey: [ { name, size, type, dataUrl } ] }
+
+function getAttachments(key) {
+  return attachmentStore[key] || [];
+}
+
+function addAttachment(key, file) {
+  return new Promise((resolve, reject) => {
+    if (file.size > 15 * 1024 * 1024) {
+      reject(new Error('File too large (max 15 MB per file)'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (!attachmentStore[key]) attachmentStore[key] = [];
+      // prevent duplicates by name
+      if (attachmentStore[key].find(a => a.name === file.name)) {
+        resolve(false); // already exists
+        return;
+      }
+      attachmentStore[key].push({
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        dataUrl: e.target.result
+      });
+      resolve(true);
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function removeAttachment(key, name) {
+  if (!attachmentStore[key]) return;
+  attachmentStore[key] = attachmentStore[key].filter(a => a.name !== name);
+}
+
+function totalAttachSize(key) {
+  return (attachmentStore[key] || []).reduce((s, a) => s + a.size, 0);
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let state = {
+  smtp: { host:'smtp.hostinger.com', port:465, secure:'ssl', user:'', pass:'', name:'Akshat Raj', reply:'', cc:'', bcc:'' },
+  contacts: [],
+  sequences: { fu1:15, fu2:15, val:15, close:7, batch:50, delay:3 },
+  bookingLink: 'http://cal.com/akshat-raj-justwords/',
+  templates: {}
+};
+
+const DEFAULT_TEMPLATES = {
+  intro: {
+    label: '1. Generic Intro Email',
+    subject: 'Introduction To Justwords | Exploring digital growth opportunities together',
+    body: `Dear {{First Name}},
+
+Greetings from Justwords!
+
+I hope you're doing well. I'm Akshat from Justwords, a content-led digital marketing agency with 15+ years of experience working with 400+ brands globally across BFSI, Healthcare, Edtech, FMCG, Technology, SAAS, Travel, E-Commerce, Real Estate and many more.
+
+We work closely with brands to strengthen their digital presence through a strategic mix of Content, SEO, Social Media Management, Website Development & Management along with Performance Marketing, Design & UI/UX Services, ORM and External Linkbuilding / Guest Posting Services, helping drive visibility, engagement, and conversions across the funnel.
+
+Some of our clients include CK Birla Group, Make My Trip, Adani, Aditya Birla Opus, Hero FinCorp, HDFC ERGO, ICICI Lombard, Reliance, Nestlé, TVS Motors, Tata Motors, upGrad, Vedantu and several global brands across BFSI, healthcare, FMCG, travel, technology, eCommerce, manufacturing, and education sectors.
+
+Please find attached our corporate deck for your reference.
+
+We'd love to understand your current marketing priorities and explore if there's any synergy in supporting your growth initiatives.
+
+You can directly book a convenient time here: {{BOOKING_LINK}}
+
+Alternatively, feel free to suggest a time that works best for you.
+
+Looking forward to connecting.
+
+Warm regards,
+Akshat Raj
+Justwords Digital
+www.justwords.in`
+  },
+  callConfirm: {
+    label: '2. Call Confirmation Email',
+    subject: 'Confirming our discussion',
+    body: `Dear {{First Name}},
+
+Greetings from Justwords!
+
+Thank you for your response — great to connect!
+
+Looking forward to our discussion. We'll walk you through our Corporate deck in detail and then cater to your current priorities and problem statements.
+
+In the meantime, feel free to share any specific areas you'd like us to focus on.
+
+Speak soon!
+
+Warm regards,
+Akshat
+Justwords Digital
+www.justwords.in`
+  },
+  postCall: {
+    label: '3. Post-Call Next Steps',
+    subject: 'Next steps & proposal',
+    body: `Dear {{First Name}},
+
+Greetings from Justwords!
+
+Thank you for your time today — it was a pleasure meeting you and your team.
+
+Based on our conversation, we'll be working on a tailored approach aligned with your goals and scope. We'll share a detailed audit/strategy and proposal shortly.
+
+If there's anything you'd like us to prioritize, please feel free to share.
+
+Looking forward to taking this ahead.
+
+Warm regards,
+Akshat
+Justwords Digital
+www.justwords.in`
+  },
+  notInterested: {
+    label: '4. Not Interested — Graceful Exit',
+    subject: 'Appreciate your response',
+    body: `Dear {{First Name}},
+
+Greetings from Justwords!
+
+Thank you for your response — completely understand.
+
+If things change in the future or if you need support with content, SEO, or scaling digital efforts, I'd be happy to reconnect.
+
+Wishing you and your team continued success!
+
+Warm regards,
+Akshat
+Justwords Digital
+www.justwords.in`
+  },
+  followup1: {
+    label: '5. Follow-up #1 (15 days)',
+    subject: 'Following up — Justwords',
+    body: `Hi {{First Name}},
+
+Greetings from Justwords!
+
+Hope you've been doing well. Just wanted to quickly follow up on my previous email regarding potential collaboration with Justwords.
+
+I understand things can get busy, but I wanted to check if you had a chance to review our decks and if there's any alignment with your current priorities around content, SEO, or digital growth.
+
+Happy to keep this flexible — if it helps, we can also jump on a quick 15–20 min call to explore if there's any synergy at this stage.
+
+Book a time here: {{BOOKING_LINK}}
+
+I look forward to hearing your thoughts.
+
+Warm regards,
+Akshat
+Justwords Digital
+www.justwords.in`
+  },
+  followup2: {
+    label: '6. Follow-up #2 (30 days)',
+    subject: 'Checking in — Justwords',
+    body: `Hi {{First Name}},
+
+Greetings from Justwords!
+
+I just wanted to gently follow up regarding your Digital/Content requirements.
+
+We completely understand if this isn't a priority right now. If that's the case, I'd be happy to reconnect at a more relevant time.
+
+That said, if there's ever a need for support across content, SEO, or scaling digital efforts — either directly or as a white-label partner — we'd be glad to step in.
+
+Let me know what works best, or if you'd prefer I check back in a few weeks/months.
+
+Either way, wishing you and the team continued success.
+
+Warm regards,
+Akshat
+Justwords Digital
+www.justwords.in`
+  },
+  valueAdd: {
+    label: '7. Value-Add Email (45 days)',
+    subject: 'Sharing something relevant',
+    body: `Dear {{First Name}},
+
+Greetings from Justwords!
+
+Hope you've been doing well.
+
+Came across a few trends around content and AI-driven search that might be relevant to your space — happy to share if useful.
+
+No agenda otherwise, just thought of staying in touch.
+
+Warm regards,
+Akshat
+Justwords Digital
+www.justwords.in`
+  },
+  closing: {
+    label: '8. Closing / Final Thank You',
+    subject: 'Thank you — Justwords',
+    body: `Dear {{First Name}},
+
+Greetings from Justwords!
+
+Hope you've been doing well.
+
+I just wanted to close the loop from my end and thank you for your time and consideration over the past few emails.
+
+Completely understand if this isn't the right time or priority. That said, if and when there's any alignment around content, SEO, or digital growth support, we'd be more than happy to reconnect and explore how we can add value.
+
+Feel free to reach out anytime:
+akshat.raj@justwords.in
++91 92055 53025
+
+Wishing you and your team continued success, and hope our paths cross again when the timing is right.
+
+Warm regards,
+Akshat Raj
+Justwords Digital
+www.justwords.in`
+  }
+};
+
+// Load from localStorage
+function loadState() {
+  try {
+    const saved = localStorage.getItem('jw_automation_state');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state = { ...state, ...parsed };
+      if (!state.templates || Object.keys(state.templates).length === 0) {
+        state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+      }
+      if (!state.smtp.secure) state.smtp.secure = 'ssl';
+      if (!state.smtp.cc) state.smtp.cc = '';
+      if (!state.smtp.bcc) state.smtp.bcc = '';
+    } else {
+      state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+    }
+  } catch(e) {
+    state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+  }
+}
+
+function saveState() {
+  localStorage.setItem('jw_automation_state', JSON.stringify(state));
+}
+
+// ═══════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) n.classList.add('active');
+  });
+  if (id === 'templates') renderTemplates();
+  if (id === 'launch') renderPreflight();
+  if (id === 'tracker') renderTracker();
+  if (id === 'dashboard') updateDashboard();
+}
+
+// ═══════════════════════════════════════════════
+// SMTP
+// ═══════════════════════════════════════════════
+function fillSmtp(host, port, secure) {
+  document.getElementById('smtp-host').value = host;
+  document.getElementById('smtp-port').value = port;
+  document.getElementById('smtp-secure').value = secure || 'ssl';
+}
+
+function saveSmtp() {
+  state.smtp = {
+    host: document.getElementById('smtp-host').value.trim(),
+    port: parseInt(document.getElementById('smtp-port').value),
+    secure: document.getElementById('smtp-secure').value,
+    user: document.getElementById('smtp-user').value.trim(),
+    pass: document.getElementById('smtp-pass').value,
+    name: document.getElementById('smtp-name').value.trim(),
+    reply: document.getElementById('smtp-reply').value.trim(),
+    cc: document.getElementById('smtp-cc').value.trim(),
+    bcc: document.getElementById('smtp-bcc').value.trim(),
+  };
+  saveState();
+  const el = document.getElementById('smtp-status');
+  el.innerHTML = '<div class="success-notice">✓ SMTP configuration saved.</div>';
+  addLog('info', 'SMTP configuration saved for ' + state.smtp.user);
+  setTimeout(() => el.innerHTML = '', 3000);
+}
+
+async function testSmtp() {
+  const el = document.getElementById('smtp-status');
+  el.innerHTML = '<div class="notice">⏳ Testing connection…</div>';
+  try {
+    const res = await fetch('http://localhost:3333/test-smtp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(state.smtp)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      el.innerHTML = '<div class="success-notice">✓ Connection successful! SMTP is working.</div>';
+      addLog('ok', 'SMTP test passed for ' + state.smtp.user);
+    } else {
+      el.innerHTML = '<div class="warning-notice">✗ Connection failed: ' + (data.error || 'Unknown error') + '</div>';
+      addLog('err', 'SMTP test failed: ' + data.error);
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="warning-notice">⚠️ Could not reach local server. Make sure server.js is running on port 3333. <a href="#" onclick="showPage(\'guide\');return false">See setup guide →</a></div>';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// CC/BCC TOGGLE (launch page)
+// ═══════════════════════════════════════════════
+function toggleCcBcc(which) {
+  const row = document.getElementById('launch-' + which + '-row');
+  const btn = document.getElementById('btn-show-' + which);
+  const isVisible = row.classList.contains('visible');
+  row.classList.toggle('visible', !isVisible);
+  btn.classList.toggle('active', !isVisible);
+}
+
+// ═══════════════════════════════════════════════
+// CSV / CONTACTS
+// ═══════════════════════════════════════════════
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.add('drag-over');
+}
+function handleDragLeave() {
+  document.getElementById('upload-zone').classList.remove('drag-over');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) parseFile(file);
+}
+function handleCsvUpload(e) {
+  const file = e.target.files[0];
+  if (file) parseFile(file);
+}
+function parseFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => parseCsvText(e.target.result);
+  reader.readAsText(file);
+}
+function parsePastedCsv() {
+  const text = document.getElementById('csv-paste').value.trim();
+  if (text) parseCsvText(text);
+}
+
+function parseCsvText(text) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  if (lines.length < 2) { alert('CSV must have a header row and at least one data row.'); return; }
+  
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["']/g,''));
+  const emailIdx = headers.findIndex(h => h === 'email' || h === 'email address');
+  const fnIdx = headers.findIndex(h => h === 'first_name' || h === 'firstname' || h === 'first name' || h === 'name');
+  const compIdx = headers.findIndex(h => h === 'company' || h === 'company name' || h === 'organization');
+
+  if (emailIdx === -1) { alert('Could not find an "email" column. Check your CSV header.'); return; }
+
+  const newContacts = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.trim().replace(/["']/g,''));
+    const email = cols[emailIdx] || '';
+    if (!email || !email.includes('@')) continue;
+    if (state.contacts.find(c => c.email === email)) continue;
+
+    newContacts.push({
+      id: Date.now() + i,
+      email,
+      firstName: fnIdx >= 0 ? (cols[fnIdx] || '') : '',
+      company: compIdx >= 0 ? (cols[compIdx] || '') : '',
+      status: 'new',
+      lastEmailSent: null,
+      lastEmailType: null,
+      step: 0,
+      addedAt: Date.now()
+    });
+  }
+
+  state.contacts.push(...newContacts);
+  saveState();
+  renderContactsTable();
+  updateDashboard();
+  addLog('ok', 'Imported ' + newContacts.length + ' contacts (' + state.contacts.length + ' total)');
+}
+
+function renderContactsTable() {
+  const tbody = document.getElementById('contacts-table');
+  const preview = document.getElementById('contacts-preview');
+  document.getElementById('contacts-count').textContent = state.contacts.length;
+  
+  if (state.contacts.length === 0) { preview.style.display = 'none'; return; }
+  preview.style.display = 'block';
+
+  tbody.innerHTML = state.contacts.slice(0, 200).map((c, i) => `
+    <tr>
+      <td style="color:var(--muted)">${i + 1}</td>
+      <td>${c.email}</td>
+      <td>${c.firstName || '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${c.company || '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${statusBadge(c.status)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeContact(${c.id})">✕</button></td>
+    </tr>
+  `).join('');
+  
+  if (state.contacts.length > 200) {
+    tbody.innerHTML += `<tr><td colspan="6" style="color:var(--muted);text-align:center;font-size:12px">… and ${state.contacts.length - 200} more</td></tr>`;
+  }
+}
+
+function removeContact(id) {
+  state.contacts = state.contacts.filter(c => c.id !== id);
+  saveState();
+  renderContactsTable();
+  updateDashboard();
+}
+
+function clearContacts() {
+  if (!confirm('Remove all contacts?')) return;
+  state.contacts = [];
+  saveState();
+  renderContactsTable();
+  updateDashboard();
+}
+
+function addContactManual() {
+  const email = prompt('Enter email address:');
+  if (!email || !email.includes('@')) return;
+  const firstName = prompt('First name:') || '';
+  const company = prompt('Company (optional):') || '';
+  state.contacts.push({ id: Date.now(), email, firstName, company, status: 'new', lastEmailSent: null, lastEmailType: null, step: 0, addedAt: Date.now() });
+  saveState();
+  renderContactsTable();
+  updateDashboard();
+}
+
+// ═══════════════════════════════════════════════
+// TEMPLATES + ATTACHMENTS
+// ═══════════════════════════════════════════════
+function renderTemplates() {
+  const container = document.getElementById('templates-list');
+  container.innerHTML = Object.entries(state.templates).map(([key, t]) => `
+    <div class="card mb-2" id="tmpl-${key}">
+      <h3 style="margin-bottom:0.75rem">${t.label}</h3>
+      <div class="mb-2">
+        <label>Subject Line</label>
+        <input type="text" id="subject-${key}" value="${escHtml(t.subject)}">
+      </div>
+      <div class="mb-2">
+        <label>Email Body</label>
+        <textarea id="body-${key}" style="min-height:160px;font-family:var(--mono);font-size:12px">${escHtml(t.body)}</textarea>
+      </div>
+
+      <!-- ── ATTACHMENT SECTION ── -->
+      <div style="border-top:1px solid var(--border);padding-top:0.85rem;margin-top:0.25rem">
+        <label style="margin-bottom:0.5rem">📎 Attachments for this email</label>
+        <div class="attach-zone" onclick="document.getElementById('attach-input-${key}').click()">
+          <span class="attach-zone-icon">📎</span>
+          <span class="attach-zone-text"><strong>Click to attach files</strong> — PDF, DOCX, PPTX, images, etc.</span>
+          <span class="btn btn-secondary btn-sm" style="pointer-events:none">Browse</span>
+        </div>
+        <input type="file" id="attach-input-${key}" multiple style="display:none"
+               onchange="handleAttachUpload('${key}', event)">
+        <div id="attach-list-${key}" class="attach-list"></div>
+        <div id="attach-summary-${key}" class="attach-summary"></div>
+      </div>
+    </div>
+  `).join('') + '<div class="mb-2"></div>';
+
+  // Render any already-loaded attachments (e.g. if templates page is re-opened)
+  Object.keys(state.templates).forEach(key => renderAttachList(key));
+}
+
+async function handleAttachUpload(key, event) {
+  const files = Array.from(event.target.files);
+  let added = 0, errors = [];
+  for (const file of files) {
+    try {
+      const ok = await addAttachment(key, file);
+      if (ok) added++;
+    } catch(e) {
+      errors.push(file.name + ': ' + e.message);
+    }
+  }
+  event.target.value = ''; // reset so same file can be re-added after removal
+  renderAttachList(key);
+  if (errors.length) alert('Some files could not be added:\n' + errors.join('\n'));
+  if (added > 0) addLog('ok', `Added ${added} attachment(s) to "${state.templates[key].label}"`);
+}
+
+function renderAttachList(key) {
+  const list = document.getElementById('attach-list-' + key);
+  const summary = document.getElementById('attach-summary-' + key);
+  if (!list) return;
+  const attachments = getAttachments(key);
+  if (attachments.length === 0) {
+    list.innerHTML = '';
+    summary.textContent = 'No attachments';
+    summary.style.color = 'var(--muted)';
+    return;
+  }
+
+  list.innerHTML = attachments.map(a => `
+    <div class="attach-item">
+      <span style="font-size:16px">${fileIcon(a.name)}</span>
+      <span class="attach-name" title="${escHtml(a.name)}">${escHtml(a.name)}</span>
+      <span class="attach-size">${fmtSize(a.size)}</span>
+      <span class="attach-remove" onclick="doRemoveAttachment('${key}','${escHtml(a.name)}')" title="Remove">✕</span>
+    </div>
+  `).join('');
+
+  const total = totalAttachSize(key);
+  const totalStr = fmtSize(total);
+  summary.textContent = `${attachments.length} file${attachments.length !== 1 ? 's' : ''} · ${totalStr} total`;
+  if (total > 10 * 1024 * 1024) {
+    summary.textContent += ' — ⚠ Large total size may be rejected by mail servers';
+    summary.style.color = 'var(--amber)';
+  } else {
+    summary.style.color = 'var(--muted)';
+  }
+}
+
+function doRemoveAttachment(key, name) {
+  removeAttachment(key, name);
+  renderAttachList(key);
+}
+
+function fileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = { pdf:'📄', doc:'📝', docx:'📝', ppt:'📊', pptx:'📊', xls:'📈', xlsx:'📈', jpg:'🖼', jpeg:'🖼', png:'🖼', gif:'🖼', zip:'📦', rar:'📦', mp4:'🎬', mp3:'🎵' };
+  return map[ext] || '📎';
+}
+
+function saveTemplates() {
+  function decodeHtml(s) {
+    const txt = document.createElement('textarea');
+    txt.innerHTML = s;
+    return txt.value;
+  }
+  Object.keys(state.templates).forEach(key => {
+    state.templates[key].subject = decodeHtml(document.getElementById('subject-' + key).value);
+    state.templates[key].body = decodeHtml(document.getElementById('body-' + key).value);
+  });
+  saveState();
+  addLog('ok', 'All email templates saved');
+  alert('✓ Templates saved!');
+}
+
+// ═══════════════════════════════════════════════
+// SEQUENCES
+// ═══════════════════════════════════════════════
+function saveSequences() {
+  state.sequences = {
+    fu1: parseInt(document.getElementById('seq-fu1').value),
+    fu2: parseInt(document.getElementById('seq-fu2').value),
+    val: parseInt(document.getElementById('seq-val').value),
+    close: parseInt(document.getElementById('seq-close').value),
+    batch: parseInt(document.getElementById('seq-batch').value),
+    delay: parseInt(document.getElementById('seq-delay').value),
+  };
+  state.bookingLink = document.getElementById('booking-link').value;
+  saveState();
+  updateFlowDiagram();
+  addLog('ok', 'Sequence settings saved');
+  alert('✓ Sequence settings saved!');
+}
+
+function updateFlowDiagram() {
+  const s = state.sequences;
+  document.getElementById('fd-fu1').textContent = s.fu1;
+  document.getElementById('fd-fu2').textContent = s.fu1 + s.fu2;
+  document.getElementById('fd-val').textContent = s.fu1 + s.fu2 + s.val;
+  ['fu1','fu2','val','close','batch','delay'].forEach(k => {
+    const el = document.getElementById('seq-' + k);
+    if (el) el.value = s[k];
+  });
+  const bl = document.getElementById('booking-link');
+  if (bl) bl.value = state.bookingLink;
+}
+
+// ═══════════════════════════════════════════════
+// LAUNCH
+// ═══════════════════════════════════════════════
+function renderPreflight() {
+  const items = [
+    { ok: !!state.smtp.user && !!state.smtp.pass, text: 'SMTP configured (' + (state.smtp.user || 'not set') + ')' },
+    { ok: state.contacts.length > 0, text: 'Contacts imported (' + state.contacts.length + ' contacts)' },
+    { ok: !!state.templates.intro.subject, text: 'Intro email template has a subject line' },
+    { ok: !!state.templates.intro.body, text: 'Intro email template has a body' },
+  ];
+  const newContacts = state.contacts.filter(c => c.status === 'new').length;
+  items.push({ ok: newContacts > 0, text: newContacts + ' contacts with status "new" ready to receive intro email' });
+
+  const introAttachments = getAttachments('intro');
+  if (introAttachments.length > 0) {
+    items.push({ ok: true, text: `📎 ${introAttachments.length} attachment(s) will be included in the intro email` });
+  }
+
+  document.getElementById('preflight-list').innerHTML = items.map(it =>
+    `<div>${it.ok ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--red)">✗</span>'} ${it.text}</div>`
+  ).join('');
+
+  const sel = document.getElementById('preview-contact');
+  sel.innerHTML = '<option value="">— Select a contact —</option>' +
+    state.contacts.slice(0, 50).map(c => `<option value="${c.id}">${c.firstName || c.email} — ${c.email}</option>`).join('');
+}
+
+function updatePreview() {
+  const id = parseInt(document.getElementById('preview-contact').value);
+  const box = document.getElementById('email-preview-box');
+  if (!id) { box.style.display = 'none'; return; }
+  const c = state.contacts.find(x => x.id === id);
+  if (!c) return;
+  const tmpl = state.templates.intro;
+  const attachments = getAttachments('intro');
+  const attachLine = attachments.length > 0
+    ? `\n📎 Attachments: ${attachments.map(a => a.name).join(', ')}`
+    : '';
+  box.style.display = 'block';
+  box.textContent = 'Subject: ' + personalise(tmpl.subject, c) + '\n' +
+    (state.smtp.cc ? 'CC: ' + state.smtp.cc + '\n' : '') +
+    (state.smtp.bcc ? 'BCC: [hidden]\n' : '') +
+    '\n' + personalise(tmpl.body, c) + attachLine;
+}
+
+function personalise(text, contact) {
+  return text
+    .replace(/\{\{First Name\}\}/gi, contact.firstName || 'there')
+    .replace(/\{\{BOOKING_LINK\}\}/g, state.bookingLink);
+}
+
+// Resolve CC/BCC: launch override takes priority over global SMTP setting
+function resolveCc() {
+  const override = (document.getElementById('launch-cc') || {}).value || '';
+  return override.trim() || state.smtp.cc || '';
+}
+function resolveBcc() {
+  const override = (document.getElementById('launch-bcc') || {}).value || '';
+  return override.trim() || state.smtp.bcc || '';
+}
+
+async function launchCampaign() {
+  const testMode = document.getElementById('test-mode').checked;
+  const testAddr = document.getElementById('test-addr').value.trim();
+  if (testMode && !testAddr) { alert('Enter a test email address.'); return; }
+
+  const targets = testMode
+    ? [{ ...state.contacts[0], email: testAddr }]
+    : state.contacts.filter(c => c.status === 'new');
+
+  if (targets.length === 0) { alert('No contacts with "new" status to send to.'); return; }
+
+  document.getElementById('launch-progress').style.display = 'block';
+  const resultEl = document.getElementById('launch-result');
+  let sent = 0;
+
+  const cc = resolveCc();
+  const bcc = resolveBcc();
+
+  for (let i = 0; i < targets.length; i++) {
+    const c = targets[i];
+    const pct = Math.round(((i + 1) / targets.length) * 100);
+    document.getElementById('launch-prog-bar').style.width = pct + '%';
+    document.getElementById('launch-prog-text').textContent = (i + 1) + ' / ' + targets.length;
+
+    const attachments = getAttachments('intro').map(a => ({
+      filename: a.name,
+      content: a.dataUrl.split(',')[1], // base64 only
+      encoding: 'base64',
+      contentType: a.type
+    }));
+
+    const payload = {
+      smtp: state.smtp,
+      to: c.email,
+      cc: cc || undefined,
+      bcc: bcc || undefined,
+      subject: personalise(state.templates.intro.subject, c),
+      body: personalise(state.templates.intro.body, c),
+      attachments: attachments.length ? attachments : undefined,
+    };
+
+    try {
+      const res = await fetch('http://localhost:3333/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.ok) {
+        sent++;
+        if (!testMode) {
+          const real = state.contacts.find(x => x.id === c.id);
+          if (real) { real.status = 'contacted'; real.lastEmailSent = Date.now(); real.lastEmailType = 'intro'; real.step = 1; }
+        }
+        addLog('ok', 'Sent intro → ' + c.email + (attachments.length ? ` [${attachments.length} attach]` : ''));
+      } else {
+        addLog('err', 'Failed → ' + c.email + ': ' + data.error);
+      }
+    } catch(e) {
+      addLog('err', 'Server not running. Start server.js first. (' + c.email + ')');
+      resultEl.innerHTML = '<span style="color:var(--red)">⚠ Server not running. See Setup Guide.</span>';
+      document.getElementById('launch-progress').style.display = 'none';
+      return;
+    }
+
+    if (i < targets.length - 1) await sleep(state.sequences.delay * 1000);
+  }
+
+  saveState();
+  updateDashboard();
+  renderTracker();
+  resultEl.innerHTML = `<span style="color:var(--green)">✓ Sent ${sent} email${sent !== 1 ? 's' : ''}${testMode ? ' (test mode)' : ''}</span>`;
+  addLog('ok', 'Campaign launched: ' + sent + ' intro emails sent');
+}
+
+document.getElementById('test-mode').addEventListener('change', function() {
+  document.getElementById('test-addr-wrap').style.display = this.checked ? 'block' : 'none';
+});
+
+// ═══════════════════════════════════════════════
+// TRACKER
+// ═══════════════════════════════════════════════
+const STATUS_FLOW = {
+  new: { label: 'New', next: ['contacted', 'not_interested'] },
+  contacted: { label: 'Contacted', next: ['booked', 'not_interested', 'followup1_pending'] },
+  booked: { label: 'Booked Call', next: ['call_done', 'not_interested'] },
+  call_done: { label: 'Call Done', next: ['closed'] },
+  not_interested: { label: 'Not Interested', next: [] },
+  followup1_pending: { label: 'FU1 Pending', next: ['booked', 'not_interested', 'followup2_pending'] },
+  followup2_pending: { label: 'FU2 Pending', next: ['booked', 'not_interested', 'value_pending'] },
+  value_pending: { label: 'Value Email Due', next: ['booked', 'not_interested', 'close_pending'] },
+  close_pending: { label: 'Closing Due', next: ['closed'] },
+  closed: { label: 'Closed', next: [] }
+};
+
+let trackerFilter = 'all';
+function filterTracker(f, btn) {
+  trackerFilter = f;
+  document.querySelectorAll('#filter-bar .btn').forEach(b => b.style.background = '');
+  if (btn) btn.style.background = 'rgba(124,108,250,0.2)';
+  renderTracker();
+}
+
+function renderTracker() {
+  const tbody = document.getElementById('tracker-table');
+  const empty = document.getElementById('tracker-empty');
+  let contacts = state.contacts;
+  if (trackerFilter !== 'all') {
+    const map = { new:'new', contacted:'contacted', booked:'booked', followup:'followup1_pending,followup2_pending,value_pending,close_pending', closed:'closed,not_interested' };
+    const statuses = (map[trackerFilter] || trackerFilter).split(',');
+    contacts = contacts.filter(c => statuses.includes(c.status));
+  }
+  if (contacts.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  const now = Date.now();
+
+  tbody.innerHTML = contacts.map(c => {
+    const lastSent = c.lastEmailSent ? timeSince(c.lastEmailSent) + ' ago' : '—';
+    const nextAction = getNextAction(c, now);
+    return `
+      <tr>
+        <td><strong>${c.firstName || '—'}</strong><br><span style="font-size:11px;color:var(--muted)">${c.company || ''}</span></td>
+        <td style="font-size:12px">${c.email}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td style="font-size:12px;color:var(--muted)">${lastSent}<br><span style="font-size:11px">${c.lastEmailType || ''}</span></td>
+        <td style="font-size:12px">${nextAction}</td>
+        <td>
+          <select style="font-size:11px;padding:3px 5px;width:130px" onchange="updateStatus(${c.id}, this.value)">
+            <option value="">Update status…</option>
+            ${Object.entries(STATUS_FLOW).map(([k,v]) => `<option value="${k}" ${c.status===k?'selected':''}>${v.label}</option>`).join('')}
+          </select>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function updateStatus(id, newStatus) {
+  if (!newStatus) return;
+  const c = state.contacts.find(x => x.id === id);
+  if (!c) return;
+  const prev = c.status;
+  c.status = newStatus;
+
+  let templateKey = null;
+  if (newStatus === 'booked' && prev !== 'booked') templateKey = 'callConfirm';
+  if (newStatus === 'call_done') templateKey = 'postCall';
+  if (newStatus === 'not_interested') templateKey = 'notInterested';
+  if (newStatus === 'closed') templateKey = 'closing';
+
+  if (templateKey && state.templates[templateKey]) {
+    await sendEmail(c, templateKey);
+  }
+
+  saveState();
+  renderTracker();
+  updateDashboard();
+  addLog('info', c.email + ' → status changed to ' + newStatus);
+}
+
+async function runDueFollowups() {
+  const now = Date.now();
+  const day = 86400000;
+  const s = state.sequences;
+  let sent = 0;
+
+  for (const c of state.contacts) {
+    if (!c.lastEmailSent) continue;
+    const daysSince = (now - c.lastEmailSent) / day;
+
+    if (c.status === 'contacted' && daysSince >= s.fu1) {
+      c.status = 'followup1_pending';
+      await sendEmail(c, 'followup1');
+      sent++;
+    } else if (c.status === 'followup1_pending' && daysSince >= s.fu2) {
+      c.status = 'followup2_pending';
+      await sendEmail(c, 'followup2');
+      sent++;
+    } else if (c.status === 'followup2_pending' && daysSince >= s.val) {
+      c.status = 'value_pending';
+      await sendEmail(c, 'valueAdd');
+      sent++;
+    } else if (c.status === 'value_pending' && daysSince >= s.close) {
+      c.status = 'close_pending';
+      await sendEmail(c, 'closing');
+      sent++;
+    }
+  }
+
+  saveState();
+  renderTracker();
+  updateDashboard();
+  if (sent === 0) {
+    addLog('info', 'No follow-ups due at this time.');
+    alert('No follow-ups are due right now.');
+  } else {
+    addLog('ok', sent + ' follow-up email(s) sent');
+    alert('✓ Sent ' + sent + ' follow-up email(s)');
+  }
+}
+
+async function sendEmail(contact, templateKey) {
+  const tmpl = state.templates[templateKey];
+  if (!tmpl) return;
+
+  const attachments = getAttachments(templateKey).map(a => ({
+    filename: a.name,
+    content: a.dataUrl.split(',')[1],
+    encoding: 'base64',
+    contentType: a.type
+  }));
+
+  const payload = {
+    smtp: state.smtp,
+    to: contact.email,
+    cc: state.smtp.cc || undefined,
+    bcc: state.smtp.bcc || undefined,
+    subject: personalise(tmpl.subject, contact),
+    body: personalise(tmpl.body, contact),
+    attachments: attachments.length ? attachments : undefined,
+  };
+  try {
+    const res = await fetch('http://localhost:3333/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      contact.lastEmailSent = Date.now();
+      contact.lastEmailType = templateKey;
+      addLog('ok', 'Sent ' + templateKey + ' → ' + contact.email + (attachments.length ? ` [${attachments.length} attach]` : ''));
+    } else {
+      addLog('err', 'Failed ' + templateKey + ' → ' + contact.email + ': ' + data.error);
+    }
+  } catch(e) {
+    addLog('err', 'Server not running — could not send ' + templateKey + ' to ' + contact.email);
+  }
+}
+
+function exportTrackerCsv() {
+  const header = 'email,first_name,company,status,last_email_type,last_email_sent';
+  const rows = state.contacts.map(c =>
+    [c.email, c.firstName, c.company, c.status, c.lastEmailType || '', c.lastEmailSent ? new Date(c.lastEmailSent).toISOString() : ''].join(',')
+  );
+  downloadText([header, ...rows].join('\n'), 'justwords_contacts_export.csv', 'text/csv');
+  addLog('info', 'Exported ' + state.contacts.length + ' contacts to CSV');
+}
+
+// ═══════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════
+function updateDashboard() {
+  const total = state.contacts.length;
+  const sent = state.contacts.filter(c => c.lastEmailSent).length;
+  const interested = state.contacts.filter(c => ['booked','call_done'].includes(c.status)).length;
+  const closed = state.contacts.filter(c => ['closed','not_interested'].includes(c.status)).length;
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-sent').textContent = sent;
+  document.getElementById('stat-interested').textContent = interested;
+  document.getElementById('stat-closed').textContent = closed;
+}
+
+// ═══════════════════════════════════════════════
+// LOG
+// ═══════════════════════════════════════════════
+function addLog(type, msg) {
+  const ul = document.getElementById('activity-log');
+  const li = document.createElement('li');
+  const time = new Date().toLocaleTimeString();
+  li.innerHTML = `<span style="color:var(--muted)">[${time}]</span> <span class="${type}">[${type.toUpperCase()}]</span> ${msg}`;
+  ul.insertBefore(li, ul.firstChild);
+  if (ul.children.length > 50) ul.removeChild(ul.lastChild);
+}
+function clearLog() {
+  document.getElementById('activity-log').innerHTML = '<li><span class="info">[INFO]</span> Log cleared</li>';
+}
+
+// ═══════════════════════════════════════════════
+// ACCORDION
+// ═══════════════════════════════════════════════
+function toggleAccordion(head) {
+  const body = head.nextElementSibling;
+  const arrow = head.querySelector('.accordion-arrow');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+// ═══════════════════════════════════════════════
+// SERVER.JS DOWNLOAD — Hostinger-aware + attachments + CC/BCC
+// ═══════════════════════════════════════════════
+function downloadServer() {
+  const serverCode = `// server.js — Justwords Email Automation Backend
+// Supports: Hostinger SSL/TLS, attachments (base64), CC, BCC
+// Run: npm install nodemailer express cors && node server.js
+const express = require('express');
+const nodemailer = require('nodemailer');
+const cors = require('cors');
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '50mb' })); // large limit for attachments
+
+function makeTransport(smtp) {
+  const useSSL = smtp.secure === 'ssl' || parseInt(smtp.port) === 465;
+  return nodemailer.createTransport({
+    host: smtp.host,
+    port: parseInt(smtp.port),
+    secure: useSSL,
+    auth: { user: smtp.user, pass: smtp.pass },
+    tls: { rejectUnauthorized: false }
+  });
+}
+
+app.post('/test-smtp', async (req, res) => {
+  try {
+    const transport = makeTransport(req.body);
+    await transport.verify();
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: false, error: e.message }); }
+});
+
+app.post('/send', async (req, res) => {
+  const { smtp, to, cc, bcc, subject, body, attachments } = req.body;
+  try {
+    const transport = makeTransport(smtp);
+    const mailOptions = {
+      from: '"' + smtp.name + '" <' + smtp.user + '>',
+      replyTo: smtp.reply || smtp.user,
+      to,
+      subject,
+      text: body,
+    };
+    if (cc) mailOptions.cc = cc;
+    if (bcc) mailOptions.bcc = bcc;
+
+    // Handle attachments: [ { filename, content (base64), encoding, contentType } ]
+    if (attachments && attachments.length > 0) {
+      mailOptions.attachments = attachments.map(a => ({
+        filename: a.filename,
+        content: Buffer.from(a.content, 'base64'),
+        contentType: a.contentType || 'application/octet-stream',
+      }));
+    }
+
+    await transport.sendMail(mailOptions);
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: false, error: e.message }); }
+});
+
+app.listen(3333, () => console.log('EmailFlow server running on http://localhost:3333'));
+`;
+  downloadText(serverCode, 'server.js', 'text/javascript');
+  addLog('info', 'server.js downloaded (with attachment + CC/BCC support)');
+}
+
+// ═══════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════
+function statusBadge(s) {
+  const map = {
+    new: ['blue','New'],
+    contacted: ['purple','Contacted'],
+    booked: ['green','Booked Call'],
+    call_done: ['green','Call Done'],
+    not_interested: ['red','Not Interested'],
+    followup1_pending: ['amber','FU1 Pending'],
+    followup2_pending: ['amber','FU2 Pending'],
+    value_pending: ['amber','Value Due'],
+    close_pending: ['amber','Close Due'],
+    closed: ['','Closed']
+  };
+  const [color, label] = map[s] || ['','Unknown'];
+  return `<span class="badge badge-${color}">${label}</span>`;
+}
+
+function getNextAction(c, now) {
+  const day = 86400000;
+  const s = state.sequences;
+  if (!c.lastEmailSent) return '<span style="color:var(--muted)">—</span>';
+  const daysSince = Math.floor((now - c.lastEmailSent) / day);
+  if (c.status === 'contacted') {
+    const due = s.fu1 - daysSince;
+    return due <= 0 ? '<span style="color:var(--amber)">FU1 overdue</span>' : 'FU1 in ' + due + 'd';
+  }
+  if (c.status === 'followup1_pending') {
+    const due = s.fu2 - daysSince;
+    return due <= 0 ? '<span style="color:var(--amber)">FU2 overdue</span>' : 'FU2 in ' + due + 'd';
+  }
+  if (c.status === 'followup2_pending') {
+    const due = s.val - daysSince;
+    return due <= 0 ? '<span style="color:var(--amber)">Value email overdue</span>' : 'Value in ' + due + 'd';
+  }
+  if (c.status === 'value_pending') {
+    const due = s.close - daysSince;
+    return due <= 0 ? '<span style="color:var(--amber)">Closing overdue</span>' : 'Closing in ' + due + 'd';
+  }
+  return '<span style="color:var(--muted)">—</span>';
+}
+
+function timeSince(ts) {
+  const secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 60) return secs + 's';
+  if (secs < 3600) return Math.floor(secs/60) + 'm';
+  if (secs < 86400) return Math.floor(secs/3600) + 'h';
+  return Math.floor(secs/86400) + 'd';
+}
+
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function downloadText(text, filename, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = filename;
+  a.click();
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+loadState();
+updateDashboard();
+updateFlowDiagram();
+renderContactsTable();
+
+// Restore SMTP form
+if (state.smtp.host) document.getElementById('smtp-host').value = state.smtp.host;
+if (state.smtp.port) document.getElementById('smtp-port').value = state.smtp.port;
+if (state.smtp.secure) document.getElementById('smtp-secure').value = state.smtp.secure;
+if (state.smtp.user) document.getElementById('smtp-user').value = state.smtp.user;
+if (state.smtp.name) document.getElementById('smtp-name').value = state.smtp.name;
+if (state.smtp.reply) document.getElementById('smtp-reply').value = state.smtp.reply;
+if (state.smtp.cc) document.getElementById('smtp-cc').value = state.smtp.cc;
+if (state.smtp.bcc) document.getElementById('smtp-bcc').value = state.smtp.bcc;
+</script>
+</body>
+</html>
