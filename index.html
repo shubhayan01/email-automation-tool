@@ -61,6 +61,7 @@
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1rem; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; font-family: var(--font); }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-primary:hover { background: #6b5ce7; }
+  .btn-primary:disabled { background: #4a4070; opacity: 0.6; cursor: not-allowed; }
   .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
   .btn-secondary:hover { background: rgba(255,255,255,0.08); }
   .btn-danger { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
@@ -182,6 +183,16 @@
   .cc-bcc-toggle button:hover, .cc-bcc-toggle button.active { border-color: var(--accent); color: var(--accent2); background: rgba(124,108,250,0.08); }
   .cc-bcc-row { display: none; margin-bottom: 0.75rem; }
   .cc-bcc-row.visible { display: block; }
+
+  /* ─── TOAST/NOTIFICATION ─── */
+  .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; font-size: 13px; z-index: 1000; animation: slideIn 0.3s ease; }
+  .toast.success { border-color: rgba(61,214,140,0.3); color: var(--green); }
+  .toast.error { border-color: rgba(248,113,113,0.3); color: var(--red); }
+  @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* ─── TEMPLATE CHANGE INDICATOR ─── */
+  .template-changed { border-color: var(--amber) !important; }
+  .save-indicator { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 11px; color: var(--amber); margin-left: 0.5rem; }
 
   /* scrollbar */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -465,7 +476,8 @@
 
       <div id="templates-list"></div>
 
-      <button class="btn btn-primary" onclick="saveTemplates()">💾 Save All Templates</button>
+      <button class="btn btn-primary" id="save-templates-btn" onclick="saveTemplates()">💾 Save All Templates</button>
+      <span id="save-status" class="save-indicator" style="display:none">✓ All changes saved</span>
     </div>
 
     <!-- ═══════════════ SEQUENCES ═══════════════ -->
@@ -728,10 +740,45 @@ ceo@startup.io,Rahul,StartupIO</div>
 
 <script>
 // ═══════════════════════════════════════════════
-// ATTACHMENT STORE (in-memory, keyed by template key)
-// Files cannot be serialized to localStorage — users must re-upload each session.
+// TOAST NOTIFICATIONS
 // ═══════════════════════════════════════════════
-const attachmentStore = {}; // { templateKey: [ { name, size, type, dataUrl } ] }
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+// ═══════════════════════════════════════════════
+// TEMPLATE CHANGE TRACKING
+// ═══════════════════════════════════════════════
+const templateChanges = {};
+
+function trackTemplateChange(key) {
+  templateChanges[key] = true;
+  const card = document.getElementById('tmpl-' + key);
+  if (card) card.classList.add('template-changed');
+  updateSaveStatus();
+}
+
+function updateSaveStatus() {
+  const hasChanges = Object.values(templateChanges).some(v => v);
+  const statusEl = document.getElementById('save-status');
+  const saveBtn = document.getElementById('save-templates-btn');
+  if (hasChanges) {
+    statusEl.style.display = 'none';
+    saveBtn.style.opacity = '1';
+  } else {
+    statusEl.style.display = 'inline-flex';
+    saveBtn.style.opacity = '0.6';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ATTACHMENT STORE (in-memory, keyed by template key)
+// ═══════════════════════════════════════════════
+const attachmentStore = {};
 
 function getAttachments(key) {
   return attachmentStore[key] || [];
@@ -746,9 +793,8 @@ function addAttachment(key, file) {
     const reader = new FileReader();
     reader.onload = (e) => {
       if (!attachmentStore[key]) attachmentStore[key] = [];
-      // prevent duplicates by name
       if (attachmentStore[key].find(a => a.name === file.name)) {
-        resolve(false); // already exists
+        resolve(false);
         return;
       }
       attachmentStore[key].push({
@@ -1030,7 +1076,7 @@ function saveSmtp() {
   saveState();
   const el = document.getElementById('smtp-status');
   el.innerHTML = '<div class="success-notice">✓ SMTP configuration saved.</div>';
-  addLog('info', 'SMTP configuration saved for ' + state.smtp.user);
+  addLog('ok', 'SMTP configuration saved for ' + state.smtp.user);
   setTimeout(() => el.innerHTML = '', 3000);
 }
 
@@ -1133,6 +1179,7 @@ function parseCsvText(text) {
   renderContactsTable();
   updateDashboard();
   addLog('ok', 'Imported ' + newContacts.length + ' contacts (' + state.contacts.length + ' total)');
+  showToast('✓ Imported ' + newContacts.length + ' contacts', 'success');
 }
 
 function renderContactsTable() {
@@ -1195,11 +1242,11 @@ function renderTemplates() {
       <h3 style="margin-bottom:0.75rem">${t.label}</h3>
       <div class="mb-2">
         <label>Subject Line</label>
-        <input type="text" id="subject-${key}" value="${escHtml(t.subject)}">
+        <input type="text" id="subject-${key}" value="${escHtml(t.subject)}" onchange="trackTemplateChange('${key}')" oninput="trackTemplateChange('${key}')">
       </div>
       <div class="mb-2">
         <label>Email Body</label>
-        <textarea id="body-${key}" style="min-height:160px;font-family:var(--mono);font-size:12px">${escHtml(t.body)}</textarea>
+        <textarea id="body-${key}" style="min-height:160px;font-family:var(--mono);font-size:12px" onchange="trackTemplateChange('${key}')" oninput="trackTemplateChange('${key}')">${escHtml(t.body)}</textarea>
       </div>
 
       <!-- ── ATTACHMENT SECTION ── -->
@@ -1218,8 +1265,8 @@ function renderTemplates() {
     </div>
   `).join('') + '<div class="mb-2"></div>';
 
-  // Render any already-loaded attachments (e.g. if templates page is re-opened)
   Object.keys(state.templates).forEach(key => renderAttachList(key));
+  updateSaveStatus();
 }
 
 async function handleAttachUpload(key, event) {
@@ -1233,10 +1280,13 @@ async function handleAttachUpload(key, event) {
       errors.push(file.name + ': ' + e.message);
     }
   }
-  event.target.value = ''; // reset so same file can be re-added after removal
+  event.target.value = '';
   renderAttachList(key);
-  if (errors.length) alert('Some files could not be added:\n' + errors.join('\n'));
-  if (added > 0) addLog('ok', `Added ${added} attachment(s) to "${state.templates[key].label}"`);
+  if (errors.length) showToast('Error adding files: ' + errors[0], 'error');
+  if (added > 0) {
+    addLog('ok', `Added ${added} attachment(s) to "${state.templates[key].label}"`);
+    showToast(`✓ Added ${added} file(s)`, 'success');
+  }
 }
 
 function renderAttachList(key) {
@@ -1256,7 +1306,7 @@ function renderAttachList(key) {
       <span style="font-size:16px">${fileIcon(a.name)}</span>
       <span class="attach-name" title="${escHtml(a.name)}">${escHtml(a.name)}</span>
       <span class="attach-size">${fmtSize(a.size)}</span>
-      <span class="attach-remove" onclick="doRemoveAttachment('${key}','${escHtml(a.name)}')" title="Remove">✕</span>
+      <span class="attach-remove" onclick="doRemoveAttachment('${key}','${escHtml(a.name).replace(/'/g, "\\'")}')" title="Remove">✕</span>
     </div>
   `).join('');
 
@@ -1283,18 +1333,32 @@ function fileIcon(name) {
 }
 
 function saveTemplates() {
-  function decodeHtml(s) {
-    const txt = document.createElement('textarea');
-    txt.innerHTML = s;
-    return txt.value;
-  }
+  let changeCount = 0;
   Object.keys(state.templates).forEach(key => {
-    state.templates[key].subject = decodeHtml(document.getElementById('subject-' + key).value);
-    state.templates[key].body = decodeHtml(document.getElementById('body-' + key).value);
+    const subjectEl = document.getElementById('subject-' + key);
+    const bodyEl = document.getElementById('body-' + key);
+    
+    if (subjectEl && bodyEl) {
+      const newSubject = subjectEl.value.trim();
+      const newBody = bodyEl.value.trim();
+      
+      if (newSubject !== state.templates[key].subject || newBody !== state.templates[key].body) {
+        state.templates[key].subject = newSubject;
+        state.templates[key].body = newBody;
+        changeCount++;
+      }
+    }
   });
+  
   saveState();
+  
+  // Clear tracking
+  Object.keys(templateChanges).forEach(k => delete templateChanges[k]);
+  document.querySelectorAll('.template-changed').forEach(el => el.classList.remove('template-changed'));
+  
+  updateSaveStatus();
   addLog('ok', 'All email templates saved');
-  alert('✓ Templates saved!');
+  showToast('✓ Templates saved successfully!', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -1313,7 +1377,7 @@ function saveSequences() {
   saveState();
   updateFlowDiagram();
   addLog('ok', 'Sequence settings saved');
-  alert('✓ Sequence settings saved!');
+  showToast('✓ Sequence settings saved!', 'success');
 }
 
 function updateFlowDiagram() {
@@ -1380,7 +1444,6 @@ function personalise(text, contact) {
     .replace(/\{\{BOOKING_LINK\}\}/g, state.bookingLink);
 }
 
-// Resolve CC/BCC: launch override takes priority over global SMTP setting
 function resolveCc() {
   const override = (document.getElementById('launch-cc') || {}).value || '';
   return override.trim() || state.smtp.cc || '';
@@ -1416,7 +1479,7 @@ async function launchCampaign() {
 
     const attachments = getAttachments('intro').map(a => ({
       filename: a.name,
-      content: a.dataUrl.split(',')[1], // base64 only
+      content: a.dataUrl.split(',')[1],
       encoding: 'base64',
       contentType: a.type
     }));
@@ -1463,6 +1526,7 @@ async function launchCampaign() {
   renderTracker();
   resultEl.innerHTML = `<span style="color:var(--green)">✓ Sent ${sent} email${sent !== 1 ? 's' : ''}${testMode ? ' (test mode)' : ''}</span>`;
   addLog('ok', 'Campaign launched: ' + sent + ' intro emails sent');
+  showToast(`✓ Sent ${sent} email${sent !== 1 ? 's' : ''}!`, 'success');
 }
 
 document.getElementById('test-mode').addEventListener('change', function() {
@@ -1548,6 +1612,7 @@ async function updateStatus(id, newStatus) {
   renderTracker();
   updateDashboard();
   addLog('info', c.email + ' → status changed to ' + newStatus);
+  showToast(`✓ Status updated`, 'success');
 }
 
 async function runDueFollowups() {
@@ -1584,10 +1649,10 @@ async function runDueFollowups() {
   updateDashboard();
   if (sent === 0) {
     addLog('info', 'No follow-ups due at this time.');
-    alert('No follow-ups are due right now.');
+    showToast('No follow-ups are due right now', 'info');
   } else {
     addLog('ok', sent + ' follow-up email(s) sent');
-    alert('✓ Sent ' + sent + ' follow-up email(s)');
+    showToast(`✓ Sent ${sent} follow-up email(s)!`, 'success');
   }
 }
 
@@ -1635,6 +1700,7 @@ function exportTrackerCsv() {
   );
   downloadText([header, ...rows].join('\n'), 'justwords_contacts_export.csv', 'text/csv');
   addLog('info', 'Exported ' + state.contacts.length + ' contacts to CSV');
+  showToast('✓ CSV exported', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -1677,7 +1743,7 @@ function toggleAccordion(head) {
 }
 
 // ═══════════════════════════════════════════════
-// SERVER.JS DOWNLOAD — Hostinger-aware + attachments + CC/BCC
+// SERVER.JS DOWNLOAD
 // ═══════════════════════════════════════════════
 function downloadServer() {
   const serverCode = `// server.js — Justwords Email Automation Backend
@@ -1688,7 +1754,7 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // large limit for attachments
+app.use(express.json({ limit: '50mb' }));
 
 function makeTransport(smtp) {
   const useSSL = smtp.secure === 'ssl' || parseInt(smtp.port) === 465;
@@ -1723,7 +1789,6 @@ app.post('/send', async (req, res) => {
     if (cc) mailOptions.cc = cc;
     if (bcc) mailOptions.bcc = bcc;
 
-    // Handle attachments: [ { filename, content (base64), encoding, contentType } ]
     if (attachments && attachments.length > 0) {
       mailOptions.attachments = attachments.map(a => ({
         filename: a.filename,
@@ -1740,7 +1805,8 @@ app.post('/send', async (req, res) => {
 app.listen(3333, () => console.log('EmailFlow server running on http://localhost:3333'));
 `;
   downloadText(serverCode, 'server.js', 'text/javascript');
-  addLog('info', 'server.js downloaded (with attachment + CC/BCC support)');
+  addLog('info', 'server.js downloaded');
+  showToast('✓ server.js downloaded', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -1816,7 +1882,6 @@ updateDashboard();
 updateFlowDiagram();
 renderContactsTable();
 
-// Restore SMTP form
 if (state.smtp.host) document.getElementById('smtp-host').value = state.smtp.host;
 if (state.smtp.port) document.getElementById('smtp-port').value = state.smtp.port;
 if (state.smtp.secure) document.getElementById('smtp-secure').value = state.smtp.secure;
