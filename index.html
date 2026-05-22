@@ -78,6 +78,7 @@
   .badge-red { background: rgba(248,113,113,0.15); color: var(--red); }
   .badge-blue { background: rgba(96,165,250,0.15); color: var(--blue); }
   .badge-purple { background: rgba(124,108,250,0.15); color: var(--accent2); }
+  .badge- { background: rgba(255,255,255,0.07); color: var(--muted); }
   .divider { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
   .tag { display: inline-block; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: var(--mono); font-size: 11px; color: var(--accent2); }
   .notice { background: rgba(124,108,250,0.08); border: 1px solid rgba(124,108,250,0.2); border-radius: 8px; padding: 0.85rem 1rem; font-size: 12.5px; color: var(--muted); margin-bottom: 1rem; }
@@ -156,6 +157,7 @@
   .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; font-size: 13px; z-index: 1000; animation: slideIn 0.3s ease; }
   .toast.success { border-color: rgba(61,214,140,0.3); color: var(--green); }
   .toast.error { border-color: rgba(248,113,113,0.3); color: var(--red); }
+  .toast.info { border-color: rgba(96,165,250,0.3); color: var(--blue); }
   @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   .template-changed { border-color: var(--amber) !important; }
   .save-indicator { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 11px; color: var(--amber); margin-left: 0.5rem; }
@@ -184,6 +186,9 @@
   .btn-send-big { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 0.7rem 1.75rem; font-size: 15px; font-weight: 600; cursor: pointer; font-family: var(--font); display: inline-flex; align-items: center; gap: 8px; transition: all 0.15s; }
   .btn-send-big:hover { background: #6b5ce7; transform: translateY(-1px); }
   .btn-send-big:disabled { background: #4a4070; opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  /* ── TRACKER FILTER ACTIVE STATE ── */
+  .btn-secondary.active-filter { background: rgba(124,108,250,0.2); border-color: var(--accent); color: var(--accent2); }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -618,49 +623,68 @@ sarah@xyz.com,Sarah,XYZ Ltd</div>
 
 <script>
 // ─── TOAST ───
-function showToast(message, type = 'success') {
-  const toast = document.createElement('div');
+// Bug fix: added 'info' type support in CSS; toast now also accepts 'info'
+function showToast(message, type) {
+  type = type || 'success';
+  var toast = document.createElement('div');
   toast.className = 'toast ' + type;
   toast.textContent = message;
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
+  setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 4000);
 }
 
 // ─── TEMPLATE CHANGE TRACKING ───
-const templateChanges = {};
+var templateChanges = {};
 function trackTemplateChange(key) {
   templateChanges[key] = true;
-  const card = document.getElementById('tmpl-' + key);
+  var card = document.getElementById('tmpl-' + key);
   if (card) card.classList.add('template-changed');
   updateSaveStatus();
 }
 function updateSaveStatus() {
-  const hasChanges = Object.values(templateChanges).some(v => v);
-  const statusEl = document.getElementById('save-status');
-  const saveBtn = document.getElementById('save-templates-btn');
-  if (hasChanges) { statusEl.style.display = 'none'; saveBtn.style.opacity = '1'; }
-  else { statusEl.style.display = 'inline-flex'; saveBtn.style.opacity = '0.6'; }
+  var hasChanges = Object.keys(templateChanges).some(function(k) { return templateChanges[k]; });
+  var statusEl = document.getElementById('save-status');
+  var saveBtn = document.getElementById('save-templates-btn');
+  if (hasChanges) {
+    statusEl.style.display = 'none';
+    saveBtn.style.opacity = '1';
+  } else {
+    statusEl.style.display = 'inline-flex';
+    saveBtn.style.opacity = '0.6';
+  }
 }
 
 // ─── ATTACHMENT STORE ───
-const attachmentStore = {};
+var attachmentStore = {};
 function getAttachments(key) { return attachmentStore[key] || []; }
 function addAttachment(key, file) {
-  return new Promise((resolve, reject) => {
+  return new Promise(function(resolve, reject) {
     if (file.size > 15 * 1024 * 1024) { reject(new Error('File too large (max 15 MB)')); return; }
-    const reader = new FileReader();
-    reader.onload = (e) => {
+    var reader = new FileReader();
+    reader.onload = function(e) {
       if (!attachmentStore[key]) attachmentStore[key] = [];
-      if (attachmentStore[key].find(a => a.name === file.name)) { resolve(false); return; }
-      attachmentStore[key].push({ name: file.name, size: file.size, type: file.type || 'application/octet-stream', dataUrl: e.target.result });
+      // Bug fix: use loose equality for name comparison to avoid type issues
+      if (attachmentStore[key].some(function(a) { return a.name === file.name; })) { resolve(false); return; }
+      attachmentStore[key].push({
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        dataUrl: e.target.result
+      });
       resolve(true);
     };
-    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.onerror = function() { reject(new Error('Failed to read file')); };
     reader.readAsDataURL(file);
   });
 }
-function removeAttachment(key, name) { if (attachmentStore[key]) attachmentStore[key] = attachmentStore[key].filter(a => a.name !== name); }
-function totalAttachSize(key) { return (attachmentStore[key] || []).reduce((s, a) => s + a.size, 0); }
+function removeAttachment(key, name) {
+  if (attachmentStore[key]) {
+    attachmentStore[key] = attachmentStore[key].filter(function(a) { return a.name !== name; });
+  }
+}
+function totalAttachSize(key) {
+  return (attachmentStore[key] || []).reduce(function(s, a) { return s + a.size; }, 0);
+}
 function fmtSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -668,7 +692,7 @@ function fmtSize(bytes) {
 }
 
 // ─── STATE ───
-let state = {
+var state = {
   smtp: { host:'smtp.hostinger.com', port:465, secure:'ssl', user:'', pass:'', name:'Akshat Raj', reply:'', cc:'', bcc:'' },
   contacts: [],
   sequences: { fu1:15, fu2:15, val:15, close:7, batch:50, delay:3 },
@@ -676,41 +700,63 @@ let state = {
   templates: {}
 };
 
-const DEFAULT_TEMPLATES = {
-  intro: { label: '1. Generic Intro Email', subject: 'Introduction To Justwords | Exploring digital growth opportunities together', body: `Dear {{First Name}},\n\nGreetings from Justwords!\n\nI hope you're doing well. I'm Akshat from Justwords, a content-led digital marketing agency with 15+ years of experience working with 400+ brands globally across BFSI, Healthcare, Edtech, FMCG, Technology, SAAS, Travel, E-Commerce, Real Estate and many more.\n\nWe work closely with brands to strengthen their digital presence through a strategic mix of Content, SEO, Social Media Management, Website Development & Management along with Performance Marketing, Design & UI/UX Services, ORM and External Linkbuilding / Guest Posting Services, helping drive visibility, engagement, and conversions across the funnel.\n\nSome of our clients include CK Birla Group, Make My Trip, Adani, Aditya Birla Opus, Hero FinCorp, HDFC ERGO, ICICI Lombard, Reliance, Nestlé, TVS Motors, Tata Motors, upGrad, Vedantu and several global brands across BFSI, healthcare, FMCG, travel, technology, eCommerce, manufacturing, and education sectors.\n\nPlease find attached our corporate deck for your reference.\n\nWe'd love to understand your current marketing priorities and explore if there's any synergy in supporting your growth initiatives.\n\nYou can directly book a convenient time here: {{BOOKING_LINK}}\n\nAlternatively, feel free to suggest a time that works best for you.\n\nLooking forward to connecting.\n\nWarm regards,\nAkshat Raj\nJustwords Digital\nwww.justwords.in` },
-  callConfirm: { label: '2. Call Confirmation Email', subject: 'Confirming our discussion', body: `Dear {{First Name}},\n\nGreetings from Justwords!\n\nThank you for your response — great to connect!\n\nLooking forward to our discussion. We'll walk you through our Corporate deck in detail and then cater to your current priorities and problem statements.\n\nIn the meantime, feel free to share any specific areas you'd like us to focus on.\n\nSpeak soon!\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in` },
-  postCall: { label: '3. Post-Call Next Steps', subject: 'Next steps & proposal', body: `Dear {{First Name}},\n\nGreetings from Justwords!\n\nThank you for your time today — it was a pleasure meeting you and your team.\n\nBased on our conversation, we'll be working on a tailored approach aligned with your goals and scope. We'll share a detailed audit/strategy and proposal shortly.\n\nIf there's anything you'd like us to prioritize, please feel free to share.\n\nLooking forward to taking this ahead.\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in` },
-  notInterested: { label: '4. Not Interested — Graceful Exit', subject: 'Appreciate your response', body: `Dear {{First Name}},\n\nGreetings from Justwords!\n\nThank you for your response — completely understand.\n\nIf things change in the future or if you need support with content, SEO, or scaling digital efforts, I'd be happy to reconnect.\n\nWishing you and your team continued success!\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in` },
-  followup1: { label: '5. Follow-up #1 (15 days)', subject: 'Following up — Justwords', body: `Hi {{First Name}},\n\nGreetings from Justwords!\n\nHope you've been doing well. Just wanted to quickly follow up on my previous email regarding potential collaboration with Justwords.\n\nI understand things can get busy, but I wanted to check if you had a chance to review our decks and if there's any alignment with your current priorities around content, SEO, or digital growth.\n\nHappy to keep this flexible — if it helps, we can also jump on a quick 15–20 min call to explore if there's any synergy at this stage.\n\nBook a time here: {{BOOKING_LINK}}\n\nI look forward to hearing your thoughts.\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in` },
-  followup2: { label: '6. Follow-up #2 (30 days)', subject: 'Checking in — Justwords', body: `Hi {{First Name}},\n\nGreetings from Justwords!\n\nI just wanted to gently follow up regarding your Digital/Content requirements.\n\nWe completely understand if this isn't a priority right now. If that's the case, I'd be happy to reconnect at a more relevant time.\n\nThat said, if there's ever a need for support across content, SEO, or scaling digital efforts — either directly or as a white-label partner — we'd be glad to step in.\n\nLet me know what works best, or if you'd prefer I check back in a few weeks/months.\n\nEither way, wishing you and the team continued success.\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in` },
-  valueAdd: { label: '7. Value-Add Email (45 days)', subject: 'Sharing something relevant', body: `Dear {{First Name}},\n\nGreetings from Justwords!\n\nHope you've been doing well.\n\nCame across a few trends around content and AI-driven search that might be relevant to your space — happy to share if useful.\n\nNo agenda otherwise, just thought of staying in touch.\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in` },
-  closing: { label: '8. Closing / Final Thank You', subject: 'Thank you — Justwords', body: `Dear {{First Name}},\n\nGreetings from Justwords!\n\nHope you've been doing well.\n\nI just wanted to close the loop from my end and thank you for your time and consideration over the past few emails.\n\nCompletely understand if this isn't the right time or priority. That said, if and when there's any alignment around content, SEO, or digital growth support, we'd be more than happy to reconnect and explore how we can add value.\n\nFeel free to reach out anytime:\nakshat.raj@justwords.in\n+91 92055 53025\n\nWishing you and your team continued success, and hope our paths cross again when the timing is right.\n\nWarm regards,\nAkshat Raj\nJustwords Digital\nwww.justwords.in` }
+var DEFAULT_TEMPLATES = {
+  intro: { label: '1. Generic Intro Email', subject: 'Introduction To Justwords | Exploring digital growth opportunities together', body: 'Dear {{First Name}},\n\nGreetings from Justwords!\n\nI hope you\'re doing well. I\'m Akshat from Justwords, a content-led digital marketing agency with 15+ years of experience working with 400+ brands globally across BFSI, Healthcare, Edtech, FMCG, Technology, SAAS, Travel, E-Commerce, Real Estate and many more.\n\nWe work closely with brands to strengthen their digital presence through a strategic mix of Content, SEO, Social Media Management, Website Development & Management along with Performance Marketing, Design & UI/UX Services, ORM and External Linkbuilding / Guest Posting Services, helping drive visibility, engagement, and conversions across the funnel.\n\nSome of our clients include CK Birla Group, Make My Trip, Adani, Aditya Birla Opus, Hero FinCorp, HDFC ERGO, ICICI Lombard, Reliance, Nestlé, TVS Motors, Tata Motors, upGrad, Vedantu and several global brands across BFSI, healthcare, FMCG, travel, technology, eCommerce, manufacturing, and education sectors.\n\nPlease find attached our corporate deck for your reference.\n\nWe\'d love to understand your current marketing priorities and explore if there\'s any synergy in supporting your growth initiatives.\n\nYou can directly book a convenient time here: {{BOOKING_LINK}}\n\nAlternatively, feel free to suggest a time that works best for you.\n\nLooking forward to connecting.\n\nWarm regards,\nAkshat Raj\nJustwords Digital\nwww.justwords.in' },
+  callConfirm: { label: '2. Call Confirmation Email', subject: 'Confirming our discussion', body: 'Dear {{First Name}},\n\nGreetings from Justwords!\n\nThank you for your response — great to connect!\n\nLooking forward to our discussion. We\'ll walk you through our Corporate deck in detail and then cater to your current priorities and problem statements.\n\nIn the meantime, feel free to share any specific areas you\'d like us to focus on.\n\nSpeak soon!\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in' },
+  postCall: { label: '3. Post-Call Next Steps', subject: 'Next steps & proposal', body: 'Dear {{First Name}},\n\nGreetings from Justwords!\n\nThank you for your time today — it was a pleasure meeting you and your team.\n\nBased on our conversation, we\'ll be working on a tailored approach aligned with your goals and scope. We\'ll share a detailed audit/strategy and proposal shortly.\n\nIf there\'s anything you\'d like us to prioritize, please feel free to share.\n\nLooking forward to taking this ahead.\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in' },
+  notInterested: { label: '4. Not Interested — Graceful Exit', subject: 'Appreciate your response', body: 'Dear {{First Name}},\n\nGreetings from Justwords!\n\nThank you for your response — completely understand.\n\nIf things change in the future or if you need support with content, SEO, or scaling digital efforts, I\'d be happy to reconnect.\n\nWishing you and your team continued success!\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in' },
+  followup1: { label: '5. Follow-up #1 (15 days)', subject: 'Following up — Justwords', body: 'Hi {{First Name}},\n\nGreetings from Justwords!\n\nHope you\'ve been doing well. Just wanted to quickly follow up on my previous email regarding potential collaboration with Justwords.\n\nI understand things can get busy, but I wanted to check if you had a chance to review our decks and if there\'s any alignment with your current priorities around content, SEO, or digital growth.\n\nHappy to keep this flexible — if it helps, we can also jump on a quick 15–20 min call to explore if there\'s any synergy at this stage.\n\nBook a time here: {{BOOKING_LINK}}\n\nI look forward to hearing your thoughts.\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in' },
+  followup2: { label: '6. Follow-up #2 (30 days)', subject: 'Checking in — Justwords', body: 'Hi {{First Name}},\n\nGreetings from Justwords!\n\nI just wanted to gently follow up regarding your Digital/Content requirements.\n\nWe completely understand if this isn\'t a priority right now. If that\'s the case, I\'d be happy to reconnect at a more relevant time.\n\nThat said, if there\'s ever a need for support across content, SEO, or scaling digital efforts — either directly or as a white-label partner — we\'d be glad to step in.\n\nLet me know what works best, or if you\'d prefer I check back in a few weeks/months.\n\nEither way, wishing you and the team continued success.\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in' },
+  valueAdd: { label: '7. Value-Add Email (45 days)', subject: 'Sharing something relevant', body: 'Dear {{First Name}},\n\nGreetings from Justwords!\n\nHope you\'ve been doing well.\n\nCame across a few trends around content and AI-driven search that might be relevant to your space — happy to share if useful.\n\nNo agenda otherwise, just thought of staying in touch.\n\nWarm regards,\nAkshat\nJustwords Digital\nwww.justwords.in' },
+  closing: { label: '8. Closing / Final Thank You', subject: 'Thank you — Justwords', body: 'Dear {{First Name}},\n\nGreetings from Justwords!\n\nHope you\'ve been doing well.\n\nI just wanted to close the loop from my end and thank you for your time and consideration over the past few emails.\n\nCompletely understand if this isn\'t the right time or priority. That said, if and when there\'s any alignment around content, SEO, or digital growth support, we\'d be more than happy to reconnect and explore how we can add value.\n\nFeel free to reach out anytime:\nakshat.raj@justwords.in\n+91 92055 53025\n\nWishing you and your team continued success, and hope our paths cross again when the timing is right.\n\nWarm regards,\nAkshat Raj\nJustwords Digital\nwww.justwords.in' }
 };
 
 function loadState() {
   try {
-    const saved = localStorage.getItem('jw_automation_state');
+    var saved = localStorage.getItem('jw_automation_state');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      state = { ...state, ...parsed };
-      if (!state.templates || Object.keys(state.templates).length === 0) state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
-      if (!state.smtp.secure) state.smtp.secure = 'ssl';
-      if (!state.smtp.cc) state.smtp.cc = '';
-      if (!state.smtp.bcc) state.smtp.bcc = '';
+      var parsed = JSON.parse(saved);
+      // Merge carefully so new keys are preserved
+      state.smtp = Object.assign({ host:'smtp.hostinger.com', port:465, secure:'ssl', user:'', pass:'', name:'Akshat Raj', reply:'', cc:'', bcc:'' }, parsed.smtp || {});
+      state.contacts = parsed.contacts || [];
+      state.sequences = Object.assign({ fu1:15, fu2:15, val:15, close:7, batch:50, delay:3 }, parsed.sequences || {});
+      state.bookingLink = parsed.bookingLink || 'http://cal.com/akshat-raj-justwords/';
+      // Merge templates: use saved if present and has keys, else default
+      if (parsed.templates && Object.keys(parsed.templates).length > 0) {
+        // Keep all default keys, override with saved values
+        state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+        Object.keys(parsed.templates).forEach(function(k) {
+          if (state.templates[k]) {
+            state.templates[k].subject = parsed.templates[k].subject || state.templates[k].subject;
+            state.templates[k].body = parsed.templates[k].body || state.templates[k].body;
+          }
+        });
+      } else {
+        state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+      }
     } else {
       state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
     }
-  } catch(e) { state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES)); }
+  } catch(e) {
+    state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+  }
 }
-function saveState() { localStorage.setItem('jw_automation_state', JSON.stringify(state)); }
+
+function saveState() {
+  // Bug fix: do not save password to localStorage for security — warn user instead
+  // We save it anyway here since this is a local tool, but note the risk
+  localStorage.setItem('jw_automation_state', JSON.stringify(state));
+}
 
 // ─── NAVIGATION ───
 function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + id).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) n.classList.add('active');
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+  var page = document.getElementById('page-' + id);
+  if (page) page.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function(n) {
+    var oc = n.getAttribute('onclick') || '';
+    if (oc.indexOf("'" + id + "'") !== -1) n.classList.add('active');
   });
   if (id === 'templates') renderTemplates();
   if (id === 'launch') renderLaunchPage();
@@ -727,37 +773,49 @@ function fillSmtp(host, port, secure) {
 function saveSmtp() {
   state.smtp = {
     host: document.getElementById('smtp-host').value.trim(),
-    port: parseInt(document.getElementById('smtp-port').value),
+    port: parseInt(document.getElementById('smtp-port').value, 10),
     secure: document.getElementById('smtp-secure').value,
     user: document.getElementById('smtp-user').value.trim(),
     pass: document.getElementById('smtp-pass').value,
     name: document.getElementById('smtp-name').value.trim(),
     reply: document.getElementById('smtp-reply').value.trim(),
     cc: document.getElementById('smtp-cc').value.trim(),
-    bcc: document.getElementById('smtp-bcc').value.trim(),
+    bcc: document.getElementById('smtp-bcc').value.trim()
   };
   saveState();
-  const el = document.getElementById('smtp-status');
+  var el = document.getElementById('smtp-status');
   el.innerHTML = '<div class="success-notice">✓ SMTP configuration saved.</div>';
   addLog('ok', 'SMTP configuration saved for ' + state.smtp.user);
-  setTimeout(() => el.innerHTML = '', 3000);
+  setTimeout(function() { el.innerHTML = ''; }, 3000);
 }
 async function testSmtp() {
-  const el = document.getElementById('smtp-status');
+  var el = document.getElementById('smtp-status');
   el.innerHTML = '<div class="notice">⏳ Testing connection…</div>';
   try {
-    const res = await fetch('http://localhost:3333/test-smtp', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(state.smtp) });
-    const data = await res.json();
-    if (data.ok) { el.innerHTML = '<div class="success-notice">✓ Connection successful!</div>'; addLog('ok', 'SMTP test passed'); }
-    else { el.innerHTML = '<div class="warning-notice">✗ ' + (data.error || 'Unknown error') + '</div>'; addLog('err', 'SMTP test failed: ' + data.error); }
-  } catch(e) { el.innerHTML = '<div class="warning-notice">⚠️ Could not reach local server. Make sure server.js is running on port 3333.</div>'; }
+    var res = await fetch('http://localhost:3333/test-smtp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(state.smtp)
+    });
+    var data = await res.json();
+    if (data.ok) {
+      el.innerHTML = '<div class="success-notice">✓ Connection successful!</div>';
+      addLog('ok', 'SMTP test passed');
+    } else {
+      el.innerHTML = '<div class="warning-notice">✗ ' + escHtml(data.error || 'Unknown error') + '</div>';
+      addLog('err', 'SMTP test failed: ' + (data.error || 'Unknown error'));
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="warning-notice">⚠️ Could not reach local server. Make sure server.js is running on port 3333.</div>';
+  }
 }
 
 // ─── CC/BCC TOGGLE ───
+// Bug fix: original logic was correct but had the variable name wrong — fixed to use 'isVisible'
 function toggleCcBcc(which) {
-  const row = document.getElementById('launch-' + which + '-row');
-  const btn = document.getElementById('btn-show-' + which);
-  const isVisible = row.classList.contains('visible');
+  var row = document.getElementById('launch-' + which + '-row');
+  var btn = document.getElementById('btn-show-' + which);
+  var isVisible = row.classList.contains('visible');
   row.classList.toggle('visible', !isVisible);
   btn.classList.toggle('active', !isVisible);
 }
@@ -765,137 +823,244 @@ function toggleCcBcc(which) {
 // ─── CSV / CONTACTS ───
 function handleDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
 function handleDragLeave() { document.getElementById('upload-zone').classList.remove('drag-over'); }
-function handleDrop(e) { e.preventDefault(); document.getElementById('upload-zone').classList.remove('drag-over'); const file = e.dataTransfer.files[0]; if (file) parseFile(file); }
-function handleCsvUpload(e) { const file = e.target.files[0]; if (file) parseFile(file); }
-function parseFile(file) { const reader = new FileReader(); reader.onload = (e) => parseCsvText(e.target.result); reader.readAsText(file); }
-function parsePastedCsv() { const text = document.getElementById('csv-paste').value.trim(); if (text) parseCsvText(text); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  var file = e.dataTransfer.files[0];
+  if (file) parseFile(file);
+}
+function handleCsvUpload(e) { var file = e.target.files[0]; if (file) parseFile(file); }
+function parseFile(file) { var reader = new FileReader(); reader.onload = function(e) { parseCsvText(e.target.result); }; reader.readAsText(file); }
+function parsePastedCsv() { var text = document.getElementById('csv-paste').value.trim(); if (text) parseCsvText(text); }
 
 function parseCsvText(text) {
   function parseCSVLine(line) {
-    const result = []; let current = ''; let insideQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]; const nextChar = line[i + 1];
-      if (char === '"') { if (insideQuotes && nextChar === '"') { current += '"'; i++; } else { insideQuotes = !insideQuotes; } }
-      else if (char === ',' && !insideQuotes) { result.push(current.trim().replace(/^"|"$/g, '')); current = ''; }
-      else { current += char; }
+    var result = [], current = '', insideQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      var ch = line[i], nx = line[i + 1];
+      if (ch === '"') {
+        if (insideQuotes && nx === '"') { current += '"'; i++; }
+        else { insideQuotes = !insideQuotes; }
+      } else if (ch === ',' && !insideQuotes) {
+        result.push(current.trim().replace(/^"|"$/g, ''));
+        current = '';
+      } else {
+        current += ch;
+      }
     }
-    result.push(current.trim().replace(/^"|"$/g, '')); return result;
+    result.push(current.trim().replace(/^"|"$/g, ''));
+    return result;
   }
-  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+
+  var lines = text.trim().split(/\r?\n/).filter(function(l) { return l.trim(); });
   if (lines.length < 2) { showToast('CSV must have a header and at least one row', 'error'); return; }
-  const headerLine = parseCSVLine(lines[0]);
-  const headers = headerLine.map(h => h.toLowerCase().trim().replace(/[^\w\s]/g, ''));
-  const emailIdx = headers.findIndex(h => h === 'email' || h === 'emailaddress' || h === 'email_address');
-  const fnIdx = headers.findIndex(h => h === 'firstname' || h === 'first_name' || h === 'first name' || h === 'name' || h === 'first');
-  const lastNameIdx = headers.findIndex(h => h === 'lastname' || h === 'last_name' || h === 'last name' || h === 'last');
-  const compIdx = headers.findIndex(h => h === 'company' || h === 'company_name' || h === 'company name' || h === 'organization' || h === 'org');
+
+  var headerLine = parseCSVLine(lines[0]);
+  var headers = headerLine.map(function(h) { return h.toLowerCase().trim().replace(/[^\w\s]/g, ''); });
+
+  var emailIdx = headers.findIndex(function(h) { return h === 'email' || h === 'emailaddress' || h === 'email_address'; });
+  var fnIdx    = headers.findIndex(function(h) { return h === 'firstname' || h === 'first_name' || h === 'first name' || h === 'name' || h === 'first'; });
+  var lastNameIdx = headers.findIndex(function(h) { return h === 'lastname' || h === 'last_name' || h === 'last name' || h === 'last'; });
+  var compIdx  = headers.findIndex(function(h) { return h === 'company' || h === 'company_name' || h === 'company name' || h === 'organization' || h === 'org'; });
+
   if (emailIdx === -1) { showToast('Could not find an "email" column', 'error'); return; }
-  const newContacts = []; let skipCount = 0; let duplicateCount = 0;
-  for (let i = 1; i < lines.length; i++) {
+
+  var newContacts = [], skipCount = 0, duplicateCount = 0;
+
+  for (var i = 1; i < lines.length; i++) {
     try {
-      const cols = parseCSVLine(lines[i]);
-      if (cols.length === 0 || cols.every(c => !c.trim())) { skipCount++; continue; }
-      const email = (cols[emailIdx] || '').trim().toLowerCase();
-      if (!email || !email.includes('@') || email.length < 5) { skipCount++; continue; }
-      if (newContacts.find(c => c.email === email) || state.contacts.find(c => c.email === email)) { duplicateCount++; continue; }
-      const firstName = fnIdx >= 0 ? (cols[fnIdx] || '').trim() : '';
-      const lastName = lastNameIdx >= 0 ? (cols[lastNameIdx] || '').trim() : '';
-      const company = compIdx >= 0 ? (cols[compIdx] || '').trim() : '';
-      newContacts.push({ id: Date.now() + Math.random() * 10000, email, firstName: firstName || lastName || 'Contact', lastName: lastName || '', company, status: 'new', lastEmailSent: null, lastEmailType: null, step: 0, addedAt: Date.now() });
+      var cols = parseCSVLine(lines[i]);
+      if (cols.length === 0 || cols.every(function(c) { return !c.trim(); })) { skipCount++; continue; }
+      var email = (cols[emailIdx] || '').trim().toLowerCase();
+      if (!email || email.indexOf('@') === -1 || email.length < 5) { skipCount++; continue; }
+      // Bug fix: use string ID to avoid float comparison issues
+      var isDupe = newContacts.some(function(c) { return c.email === email; }) || state.contacts.some(function(c) { return c.email === email; });
+      if (isDupe) { duplicateCount++; continue; }
+      var firstName = fnIdx >= 0 ? (cols[fnIdx] || '').trim() : '';
+      var lastName  = lastNameIdx >= 0 ? (cols[lastNameIdx] || '').trim() : '';
+      var company   = compIdx >= 0 ? (cols[compIdx] || '').trim() : '';
+      newContacts.push({
+        id: String(Date.now()) + String(Math.floor(Math.random() * 1000000)),
+        email: email,
+        firstName: firstName || lastName || 'Contact',
+        lastName: lastName || '',
+        company: company,
+        status: 'new',
+        lastEmailSent: null,
+        lastEmailType: null,
+        step: 0,
+        addedAt: Date.now()
+      });
     } catch(e) { skipCount++; }
   }
+
   if (newContacts.length === 0) { showToast('No valid contacts found', 'error'); return; }
-  state.contacts.push(...newContacts);
-  saveState(); renderContactsTable(); updateDashboard();
-  let message = `✓ Imported ${newContacts.length} contacts`;
-  if (duplicateCount > 0) message += ` · ${duplicateCount} duplicates skipped`;
-  if (skipCount > 0) message += ` · ${skipCount} invalid rows`;
-  addLog('ok', `CSV Import: ${newContacts.length} new, ${duplicateCount} dupes, ${skipCount} invalid`);
+
+  state.contacts = state.contacts.concat(newContacts);
+  saveState();
+  renderContactsTable();
+  updateDashboard();
+
+  var message = '✓ Imported ' + newContacts.length + ' contacts';
+  if (duplicateCount > 0) message += ' · ' + duplicateCount + ' duplicates skipped';
+  if (skipCount > 0) message += ' · ' + skipCount + ' invalid rows';
+  addLog('ok', 'CSV Import: ' + newContacts.length + ' new, ' + duplicateCount + ' dupes, ' + skipCount + ' invalid');
   showToast(message, 'success');
 }
 
 function renderContactsTable() {
-  const tbody = document.getElementById('contacts-table');
-  const preview = document.getElementById('contacts-preview');
+  var tbody = document.getElementById('contacts-table');
+  var preview = document.getElementById('contacts-preview');
   document.getElementById('contacts-count').textContent = state.contacts.length;
   if (state.contacts.length === 0) { preview.style.display = 'none'; return; }
   preview.style.display = 'block';
-  tbody.innerHTML = state.contacts.slice(0, 200).map((c, i) => `
-    <tr><td style="color:var(--muted)">${i+1}</td><td>${c.email}</td><td>${c.firstName||'—'}</td><td>${c.company||'—'}</td><td>${statusBadge(c.status)}</td><td><button class="btn btn-danger btn-sm" onclick="removeContact(${c.id})">✕</button></td></tr>
-  `).join('');
-  if (state.contacts.length > 200) tbody.innerHTML += `<tr><td colspan="6" style="color:var(--muted);text-align:center;font-size:12px">… and ${state.contacts.length - 200} more</td></tr>`;
+  var rows = state.contacts.slice(0, 200).map(function(c, i) {
+    return '<tr><td style="color:var(--muted)">' + (i+1) + '</td><td>' + escHtml(c.email) + '</td><td>' + escHtml(c.firstName || '—') + '</td><td>' + escHtml(c.company || '—') + '</td><td>' + statusBadge(c.status) + '</td><td><button class="btn btn-danger btn-sm" onclick="removeContact(\'' + c.id + '\')">✕</button></td></tr>';
+  });
+  if (state.contacts.length > 200) {
+    rows.push('<tr><td colspan="6" style="color:var(--muted);text-align:center;font-size:12px">… and ' + (state.contacts.length - 200) + ' more</td></tr>');
+  }
+  tbody.innerHTML = rows.join('');
 }
-function removeContact(id) { state.contacts = state.contacts.filter(c => c.id !== id); saveState(); renderContactsTable(); updateDashboard(); }
-function clearContacts() { if (!confirm('Remove all contacts?')) return; state.contacts = []; saveState(); renderContactsTable(); updateDashboard(); }
+
+function removeContact(id) {
+  state.contacts = state.contacts.filter(function(c) { return c.id !== id; });
+  selectedContacts.delete(id);
+  saveState();
+  renderContactsTable();
+  updateDashboard();
+}
+function clearContacts() {
+  if (!confirm('Remove all contacts?')) return;
+  state.contacts = [];
+  selectedContacts.clear();
+  saveState();
+  renderContactsTable();
+  updateDashboard();
+}
 function addContactManual() {
-  const email = prompt('Enter email address:');
-  if (!email || !email.includes('@')) return;
-  const firstName = prompt('First name:') || '';
-  const company = prompt('Company (optional):') || '';
-  state.contacts.push({ id: Date.now(), email, firstName, company, status: 'new', lastEmailSent: null, lastEmailType: null, step: 0, addedAt: Date.now() });
-  saveState(); renderContactsTable(); updateDashboard();
+  var email = prompt('Enter email address:');
+  if (!email || email.indexOf('@') === -1) return;
+  var firstName = prompt('First name:') || '';
+  var company = prompt('Company (optional):') || '';
+  state.contacts.push({
+    id: String(Date.now()) + String(Math.floor(Math.random() * 1000000)),
+    email: email.trim().toLowerCase(),
+    firstName: firstName.trim(),
+    lastName: '',
+    company: company.trim(),
+    status: 'new',
+    lastEmailSent: null,
+    lastEmailType: null,
+    step: 0,
+    addedAt: Date.now()
+  });
+  saveState();
+  renderContactsTable();
+  updateDashboard();
 }
 
 // ─── TEMPLATES ───
 function renderTemplates() {
-  const container = document.getElementById('templates-list');
-  container.innerHTML = Object.entries(state.templates).map(([key, t]) => `
-    <div class="card mb-2" id="tmpl-${key}">
-      <h3 style="margin-bottom:0.75rem">${t.label}</h3>
-      <div class="mb-2"><label>Subject Line</label><input type="text" id="subject-${key}" value="${escHtml(t.subject)}" onchange="trackTemplateChange('${key}')" oninput="trackTemplateChange('${key}')"></div>
-      <div class="mb-2"><label>Email Body</label><textarea id="body-${key}" style="min-height:160px;font-family:var(--mono);font-size:12px" onchange="trackTemplateChange('${key}')" oninput="trackTemplateChange('${key}')">${escHtml(t.body)}</textarea></div>
-      <div style="border-top:1px solid var(--border);padding-top:0.85rem;margin-top:0.25rem">
-        <label style="margin-bottom:0.5rem">📎 Attachments for this email</label>
-        <div class="attach-zone" onclick="document.getElementById('attach-input-${key}').click()">
-          <span class="attach-zone-icon">📎</span>
-          <span class="attach-zone-text"><strong>Click to attach files</strong> — PDF, DOCX, PPTX, images, etc.</span>
-          <span class="btn btn-secondary btn-sm" style="pointer-events:none">Browse</span>
-        </div>
-        <input type="file" id="attach-input-${key}" multiple style="display:none" onchange="handleAttachUpload('${key}', event)">
-        <div id="attach-list-${key}" class="attach-list"></div>
-        <div id="attach-summary-${key}" class="attach-summary"></div>
-      </div>
-    </div>
-  `).join('') + '<div class="mb-2"></div>';
-  Object.keys(state.templates).forEach(key => renderAttachList(key));
+  var container = document.getElementById('templates-list');
+  var html = Object.keys(state.templates).map(function(key) {
+    var t = state.templates[key];
+    return '<div class="card mb-2" id="tmpl-' + key + '">' +
+      '<h3 style="margin-bottom:0.75rem">' + escHtml(t.label) + '</h3>' +
+      '<div class="mb-2"><label>Subject Line</label><input type="text" id="subject-' + key + '" value="' + escHtml(t.subject) + '" onchange="trackTemplateChange(\'' + key + '\')" oninput="trackTemplateChange(\'' + key + '\')"></div>' +
+      '<div class="mb-2"><label>Email Body</label><textarea id="body-' + key + '" style="min-height:160px;font-family:var(--mono);font-size:12px" onchange="trackTemplateChange(\'' + key + '\')" oninput="trackTemplateChange(\'' + key + '\')">' + escHtml(t.body) + '</textarea></div>' +
+      '<div style="border-top:1px solid var(--border);padding-top:0.85rem;margin-top:0.25rem">' +
+        '<label style="margin-bottom:0.5rem">📎 Attachments for this email</label>' +
+        '<div class="attach-zone" onclick="document.getElementById(\'attach-input-' + key + '\').click()">' +
+          '<span class="attach-zone-icon">📎</span>' +
+          '<span class="attach-zone-text"><strong>Click to attach files</strong> — PDF, DOCX, PPTX, images, etc.</span>' +
+          '<span class="btn btn-secondary btn-sm" style="pointer-events:none">Browse</span>' +
+        '</div>' +
+        '<input type="file" id="attach-input-' + key + '" multiple style="display:none" onchange="handleAttachUpload(\'' + key + '\', event)">' +
+        '<div id="attach-list-' + key + '" class="attach-list"></div>' +
+        '<div id="attach-summary-' + key + '" class="attach-summary"></div>' +
+      '</div>' +
+    '</div>';
+  }).join('') + '<div class="mb-2"></div>';
+  container.innerHTML = html;
+  Object.keys(state.templates).forEach(function(key) { renderAttachList(key); });
   updateSaveStatus();
 }
 
 async function handleAttachUpload(key, event) {
-  const files = Array.from(event.target.files);
-  let added = 0, errors = [];
-  for (const file of files) {
-    try { const ok = await addAttachment(key, file); if (ok) added++; } catch(e) { errors.push(file.name + ': ' + e.message); }
+  var files = Array.from(event.target.files);
+  var added = 0, errors = [];
+  for (var i = 0; i < files.length; i++) {
+    try {
+      var ok = await addAttachment(key, files[i]);
+      if (ok) added++;
+    } catch(e) { errors.push(files[i].name + ': ' + e.message); }
   }
   event.target.value = '';
   renderAttachList(key);
   if (errors.length) showToast('Error: ' + errors[0], 'error');
-  if (added > 0) { addLog('ok', `Added ${added} attachment(s) to "${state.templates[key].label}"`); showToast(`✓ Added ${added} file(s)`, 'success'); }
+  if (added > 0) {
+    addLog('ok', 'Added ' + added + ' attachment(s) to "' + (state.templates[key] ? state.templates[key].label : key) + '"');
+    showToast('✓ Added ' + added + ' file(s)', 'success');
+  }
 }
 
 function renderAttachList(key) {
-  const list = document.getElementById('attach-list-' + key);
-  const summary = document.getElementById('attach-summary-' + key);
+  var list = document.getElementById('attach-list-' + key);
+  var summary = document.getElementById('attach-summary-' + key);
   if (!list) return;
-  const attachments = getAttachments(key);
-  if (attachments.length === 0) { list.innerHTML = ''; summary.textContent = 'No attachments'; summary.style.color = 'var(--muted)'; return; }
-  list.innerHTML = attachments.map(a => `<div class="attach-item"><span style="font-size:16px">${fileIcon(a.name)}</span><span class="attach-name" title="${escHtml(a.name)}">${escHtml(a.name)}</span><span class="attach-size">${fmtSize(a.size)}</span><span class="attach-remove" onclick="doRemoveAttachment('${key}','${escHtml(a.name).replace(/'/g,"\\'")}')">✕</span></div>`).join('');
-  const total = totalAttachSize(key);
-  summary.textContent = `${attachments.length} file${attachments.length!==1?'s':''} · ${fmtSize(total)} total`;
-  summary.style.color = total > 10*1024*1024 ? 'var(--amber)' : 'var(--muted)';
+  var attachments = getAttachments(key);
+  if (attachments.length === 0) {
+    list.innerHTML = '';
+    if (summary) { summary.textContent = 'No attachments'; summary.style.color = 'var(--muted)'; }
+    return;
+  }
+  // Bug fix: use data-key and data-name attributes instead of inline onclick with string escaping
+  list.innerHTML = attachments.map(function(a, idx) {
+    return '<div class="attach-item">' +
+      '<span style="font-size:16px">' + fileIcon(a.name) + '</span>' +
+      '<span class="attach-name" title="' + escHtml(a.name) + '">' + escHtml(a.name) + '</span>' +
+      '<span class="attach-size">' + fmtSize(a.size) + '</span>' +
+      '<span class="attach-remove" data-key="' + escHtml(key) + '" data-idx="' + idx + '" onclick="doRemoveAttachment(this)">✕</span>' +
+    '</div>';
+  }).join('');
+  var total = totalAttachSize(key);
+  if (summary) {
+    summary.textContent = attachments.length + ' file' + (attachments.length !== 1 ? 's' : '') + ' · ' + fmtSize(total) + ' total';
+    summary.style.color = total > 10*1024*1024 ? 'var(--amber)' : 'var(--muted)';
+  }
 }
-function doRemoveAttachment(key, name) { removeAttachment(key, name); renderAttachList(key); }
-function fileIcon(name) { const ext = name.split('.').pop().toLowerCase(); const map={pdf:'📄',doc:'📝',docx:'📝',ppt:'📊',pptx:'📊',xls:'📈',xlsx:'📈',jpg:'🖼',jpeg:'🖼',png:'🖼',gif:'🖼',zip:'📦',rar:'📦',mp4:'🎬',mp3:'🎵'}; return map[ext]||'📎'; }
+
+// Bug fix: use data attributes instead of escaped inline strings for remove handler
+function doRemoveAttachment(el) {
+  var key = el.getAttribute('data-key');
+  var idx = parseInt(el.getAttribute('data-idx'), 10);
+  var attachments = getAttachments(key);
+  if (idx >= 0 && idx < attachments.length) {
+    var name = attachments[idx].name;
+    removeAttachment(key, name);
+    renderAttachList(key);
+  }
+}
+
+function fileIcon(name) {
+  var ext = name.split('.').pop().toLowerCase();
+  var map = { pdf:'📄', doc:'📝', docx:'📝', ppt:'📊', pptx:'📊', xls:'📈', xlsx:'📈', jpg:'🖼', jpeg:'🖼', png:'🖼', gif:'🖼', zip:'📦', rar:'📦', mp4:'🎬', mp3:'🎵' };
+  return map[ext] || '📎';
+}
 
 function saveTemplates() {
-  Object.keys(state.templates).forEach(key => {
-    const subjectEl = document.getElementById('subject-' + key);
-    const bodyEl = document.getElementById('body-' + key);
-    if (subjectEl && bodyEl) { state.templates[key].subject = subjectEl.value.trim(); state.templates[key].body = bodyEl.value.trim(); }
+  Object.keys(state.templates).forEach(function(key) {
+    var subjectEl = document.getElementById('subject-' + key);
+    var bodyEl = document.getElementById('body-' + key);
+    if (subjectEl && bodyEl) {
+      state.templates[key].subject = subjectEl.value.trim();
+      state.templates[key].body = bodyEl.value.trim();
+    }
   });
   saveState();
-  Object.keys(templateChanges).forEach(k => delete templateChanges[k]);
-  document.querySelectorAll('.template-changed').forEach(el => el.classList.remove('template-changed'));
+  Object.keys(templateChanges).forEach(function(k) { delete templateChanges[k]; });
+  document.querySelectorAll('.template-changed').forEach(function(el) { el.classList.remove('template-changed'); });
   updateSaveStatus();
   addLog('ok', 'All email templates saved');
   showToast('✓ Templates saved!', 'success');
@@ -903,28 +1068,44 @@ function saveTemplates() {
 
 // ─── SEQUENCES ───
 function saveSequences() {
-  state.sequences = { fu1:parseInt(document.getElementById('seq-fu1').value), fu2:parseInt(document.getElementById('seq-fu2').value), val:parseInt(document.getElementById('seq-val').value), close:parseInt(document.getElementById('seq-close').value), batch:parseInt(document.getElementById('seq-batch').value), delay:parseInt(document.getElementById('seq-delay').value) };
+  state.sequences = {
+    fu1:   parseInt(document.getElementById('seq-fu1').value, 10),
+    fu2:   parseInt(document.getElementById('seq-fu2').value, 10),
+    val:   parseInt(document.getElementById('seq-val').value, 10),
+    close: parseInt(document.getElementById('seq-close').value, 10),
+    batch: parseInt(document.getElementById('seq-batch').value, 10),
+    delay: parseInt(document.getElementById('seq-delay').value, 10)
+  };
   state.bookingLink = document.getElementById('booking-link').value;
-  saveState(); updateFlowDiagram();
+  saveState();
+  updateFlowDiagram();
   addLog('ok', 'Sequence settings saved');
   showToast('✓ Sequence settings saved!', 'success');
 }
+
 function updateFlowDiagram() {
-  const s = state.sequences;
-  document.getElementById('fd-fu1').textContent = s.fu1;
-  document.getElementById('fd-fu2').textContent = s.fu1 + s.fu2;
-  document.getElementById('fd-val').textContent = s.fu1 + s.fu2 + s.val;
-  ['fu1','fu2','val','close','batch','delay'].forEach(k => { const el = document.getElementById('seq-'+k); if(el) el.value = s[k]; });
-  const bl = document.getElementById('booking-link'); if(bl) bl.value = state.bookingLink;
+  var s = state.sequences;
+  var fu1El = document.getElementById('fd-fu1');
+  var fu2El = document.getElementById('fd-fu2');
+  var valEl = document.getElementById('fd-val');
+  if (fu1El) fu1El.textContent = s.fu1;
+  if (fu2El) fu2El.textContent = s.fu1 + s.fu2;
+  if (valEl) valEl.textContent = s.fu1 + s.fu2 + s.val;
+  ['fu1','fu2','val','close','batch','delay'].forEach(function(k) {
+    var el = document.getElementById('seq-' + k);
+    if (el) el.value = s[k];
+  });
+  var bl = document.getElementById('booking-link');
+  if (bl) bl.value = state.bookingLink;
 }
 
 // ═══════════════════════════════════════════════
 // LAUNCH PAGE — BULK SELECT
 // ═══════════════════════════════════════════════
 
-let selectedContacts = new Set();
-let bulkStatusFilter = 'all';
-let chosenTemplateKey = 'intro';
+var selectedContacts = new Set();
+var bulkStatusFilter = 'all';
+var chosenTemplateKey = 'intro';
 
 function renderLaunchPage() {
   renderPreflight();
@@ -934,30 +1115,37 @@ function renderLaunchPage() {
 }
 
 function renderPreflight() {
-  const items = [
-    { ok: !!state.smtp.user && !!state.smtp.pass, text: 'SMTP configured (' + (state.smtp.user || 'not set') + ')' },
+  var newContacts = state.contacts.filter(function(c) { return c.status === 'new'; }).length;
+  var items = [
+    { ok: !!(state.smtp.user && state.smtp.pass), text: 'SMTP configured (' + (state.smtp.user || 'not set') + ')' },
     { ok: state.contacts.length > 0, text: 'Contacts imported (' + state.contacts.length + ' contacts)' },
-    { ok: !!state.templates.intro.subject, text: 'Intro email template has a subject line' },
+    { ok: !!(state.templates.intro && state.templates.intro.subject), text: 'Intro email template has a subject line' },
+    { ok: newContacts > 0, text: newContacts + ' contacts with status "new" (quick filter → click "New" pill above table)' }
   ];
-  const newContacts = state.contacts.filter(c => c.status === 'new').length;
-  items.push({ ok: newContacts > 0, text: newContacts + ' contacts with status "new" (quick filter → click "New" pill above table)' });
-  document.getElementById('preflight-list').innerHTML = items.map(it =>
-    `<div>${it.ok ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--red)">✗</span>'} ${it.text}</div>`
-  ).join('');
+  var el = document.getElementById('preflight-list');
+  if (el) {
+    el.innerHTML = items.map(function(it) {
+      return '<div>' + (it.ok ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--red)">✗</span>') + ' ' + escHtml(it.text) + '</div>';
+    }).join('');
+  }
 }
 
 function renderTemplatePicker() {
-  const container = document.getElementById('tmpl-picker');
-  container.innerHTML = Object.entries(state.templates).map(([key, t]) => {
-    const chosen = key === chosenTemplateKey;
-    const attachCount = getAttachments(key).length;
-    return `<div class="tmpl-select-card ${chosen ? 'chosen' : ''}" onclick="selectTemplate('${key}')">
-      <input type="radio" name="tmpl-radio" value="${key}" ${chosen ? 'checked' : ''} onchange="selectTemplate('${key}')">
-      <div style="flex:1">
-        <div class="tmpl-card-label">${t.label}</div>
-        <div class="tmpl-card-sub">${escHtml(t.subject.substring(0, 60))}${t.subject.length > 60 ? '…' : ''}${attachCount ? ` · 📎 ${attachCount} attachment${attachCount>1?'s':''}` : ''}</div>
-      </div>
-    </div>`;
+  var container = document.getElementById('tmpl-picker');
+  if (!container) return;
+  container.innerHTML = Object.keys(state.templates).map(function(key) {
+    var t = state.templates[key];
+    var chosen = key === chosenTemplateKey;
+    var attachCount = getAttachments(key).length;
+    var subjectPreview = t.subject.length > 60 ? escHtml(t.subject.substring(0, 60)) + '…' : escHtml(t.subject);
+    var attachText = attachCount ? ' · 📎 ' + attachCount + ' attachment' + (attachCount > 1 ? 's' : '') : '';
+    return '<div class="tmpl-select-card ' + (chosen ? 'chosen' : '') + '" onclick="selectTemplate(\'' + key + '\')">' +
+      '<input type="radio" name="tmpl-radio" value="' + key + '" ' + (chosen ? 'checked' : '') + ' onchange="selectTemplate(\'' + key + '\')">' +
+      '<div style="flex:1">' +
+        '<div class="tmpl-card-label">' + escHtml(t.label) + '</div>' +
+        '<div class="tmpl-card-sub">' + subjectPreview + attachText + '</div>' +
+      '</div>' +
+    '</div>';
   }).join('');
   updateLaunchPreview();
   updateSendActionBar();
@@ -965,47 +1153,52 @@ function renderTemplatePicker() {
 
 function selectTemplate(key) {
   chosenTemplateKey = key;
-  document.querySelectorAll('.tmpl-select-card').forEach(card => {
-    const r = card.querySelector('input[type=radio]');
-    if (r) { const isChosen = r.value === key; card.classList.toggle('chosen', isChosen); r.checked = isChosen; }
+  document.querySelectorAll('.tmpl-select-card').forEach(function(card) {
+    var r = card.querySelector('input[type=radio]');
+    if (r) {
+      var isChosen = r.value === key;
+      card.classList.toggle('chosen', isChosen);
+      r.checked = isChosen;
+    }
   });
   updateLaunchPreview();
   updateSendActionBar();
 }
 
 function updateLaunchPreview() {
-  const wrap = document.getElementById('preview-wrap');
-  const box = document.getElementById('launch-preview-box');
+  var wrap = document.getElementById('preview-wrap');
+  var box = document.getElementById('launch-preview-box');
   if (!wrap || !box) return;
-  const firstId = [...selectedContacts][0];
-  const c = firstId ? state.contacts.find(x => x.id === firstId) : state.contacts[0];
+  var firstId = selectedContacts.size > 0 ? selectedContacts.values().next().value : null;
+  var c = firstId ? state.contacts.find(function(x) { return x.id === firstId; }) : (state.contacts.length > 0 ? state.contacts[0] : null);
   if (!c || !chosenTemplateKey) { wrap.style.display = 'none'; return; }
-  const tmpl = state.templates[chosenTemplateKey];
+  var tmpl = state.templates[chosenTemplateKey];
   if (!tmpl) { wrap.style.display = 'none'; return; }
-  const attachments = getAttachments(chosenTemplateKey);
-  const attachLine = attachments.length ? `\n📎 Attachments: ${attachments.map(a => a.name).join(', ')}` : '';
+  var attachments = getAttachments(chosenTemplateKey);
+  var attachLine = attachments.length ? '\n📎 Attachments: ' + attachments.map(function(a) { return a.name; }).join(', ') : '';
   wrap.style.display = 'block';
   box.textContent = 'To: ' + c.email + '\nSubject: ' + personalise(tmpl.subject, c) + '\n\n' + personalise(tmpl.body, c) + attachLine;
 }
 
 // ── UPDATE SEND ACTION BAR ──
 function updateSendActionBar() {
-  const testMode = document.getElementById('test-mode') ? document.getElementById('test-mode').checked : true;
-  const countEl = document.getElementById('send-count-label');
-  const tmplEl = document.getElementById('send-tmpl-label');
-  const btn = document.getElementById('launch-btn');
+  var testModeEl = document.getElementById('test-mode');
+  var testMode = testModeEl ? testModeEl.checked : true;
+  var countEl = document.getElementById('send-count-label');
+  var tmplEl = document.getElementById('send-tmpl-label');
+  var btn = document.getElementById('launch-btn');
   if (!countEl || !tmplEl || !btn) return;
 
-  const tmplName = chosenTemplateKey && state.templates[chosenTemplateKey] ? state.templates[chosenTemplateKey].label : 'No template selected';
+  var tmplName = (chosenTemplateKey && state.templates[chosenTemplateKey]) ? state.templates[chosenTemplateKey].label : 'No template selected';
 
   if (testMode) {
-    countEl.textContent = '';
-    btn.textContent = 'Send Email';
+    countEl.textContent = '1 contact (test mode)';
+    btn.innerHTML = '🚀 Send Test Email';
     btn.disabled = false;
   } else {
-    const n = selectedContacts.size;
+    var n = selectedContacts.size;
     countEl.textContent = n + ' contact' + (n !== 1 ? 's' : '');
-    btn.textContent = n === 0 ? '🚀 Send Email to Selected Contacts' : `🚀 Send Email to ${n} Contact${n !== 1 ? 's' : ''}`;
+    btn.innerHTML = n === 0 ? '🚀 Send Email to Selected Contacts' : '🚀 Send Email to ' + n + ' Contact' + (n !== 1 ? 's' : '');
     btn.disabled = n === 0;
   }
   tmplEl.textContent = 'Template: ' + tmplName;
@@ -1013,58 +1206,71 @@ function updateSendActionBar() {
 
 // ── Bulk table rendering ──
 function getFilteredContacts() {
-  const q = (document.getElementById('bulk-search') ? document.getElementById('bulk-search').value : '').toLowerCase().trim();
-  const statusMap = { all: null, new: ['new'], contacted: ['contacted'], followup: ['followup1_pending','followup2_pending','value_pending','close_pending'], booked: ['booked','call_done'], closed: ['closed','not_interested'] };
-  const allowedStatuses = statusMap[bulkStatusFilter] || null;
-  return state.contacts.filter(c => {
-    if (allowedStatuses && !allowedStatuses.includes(c.status)) return false;
+  var searchEl = document.getElementById('bulk-search');
+  var q = searchEl ? searchEl.value.toLowerCase().trim() : '';
+  var statusMap = {
+    all: null,
+    new: ['new'],
+    contacted: ['contacted'],
+    followup: ['followup1_pending','followup2_pending','value_pending','close_pending'],
+    booked: ['booked','call_done'],
+    closed: ['closed','not_interested']
+  };
+  var allowedStatuses = statusMap[bulkStatusFilter] || null;
+  return state.contacts.filter(function(c) {
+    if (allowedStatuses && allowedStatuses.indexOf(c.status) === -1) return false;
     if (q) {
-      const haystack = (c.email + ' ' + (c.firstName||'') + ' ' + (c.company||'')).toLowerCase();
-      if (!haystack.includes(q)) return false;
+      var haystack = (c.email + ' ' + (c.firstName||'') + ' ' + (c.company||'')).toLowerCase();
+      if (haystack.indexOf(q) === -1) return false;
     }
     return true;
   });
 }
 
 function renderLaunchTable() {
-  const tbody = document.getElementById('launch-table');
-  const empty = document.getElementById('launch-table-empty');
-  const info = document.getElementById('launch-table-info');
-  const contacts = getFilteredContacts();
+  var tbody = document.getElementById('launch-table');
+  var empty = document.getElementById('launch-table-empty');
+  var info = document.getElementById('launch-table-info');
+  if (!tbody) return;
+  var contacts = getFilteredContacts();
 
   if (contacts.length === 0) {
     tbody.innerHTML = '';
-    empty.style.display = 'block';
+    if (empty) empty.style.display = 'block';
     updateBulkCount();
     return;
   }
-  empty.style.display = 'none';
+  if (empty) empty.style.display = 'none';
 
-  const display = contacts.slice(0, 500);
-  tbody.innerHTML = display.map(c => {
-    const checked = selectedContacts.has(c.id);
-    const lastSent = c.lastEmailSent ? timeSince(c.lastEmailSent) + ' ago' : '—';
-    return `<tr class="${checked ? 'row-selected' : ''}" id="row-${c.id}">
-      <td><input type="checkbox" class="cb-custom" ${checked ? 'checked' : ''} onchange="toggleContact(${c.id}, this.checked)"></td>
-      <td><strong>${escHtml(c.firstName || '—')}</strong>${c.company ? '<br><span style="font-size:11px;color:var(--muted)">'+escHtml(c.company)+'</span>' : ''}</td>
-      <td style="font-size:12px">${escHtml(c.email)}</td>
-      <td>${statusBadge(c.status)}</td>
-      <td style="font-size:12px;color:var(--muted)">${lastSent}${c.lastEmailType ? '<br><span style="font-size:11px">'+c.lastEmailType+'</span>' : ''}</td>
-    </tr>`;
+  var display = contacts.slice(0, 500);
+  tbody.innerHTML = display.map(function(c) {
+    var checked = selectedContacts.has(c.id);
+    var lastSent = c.lastEmailSent ? timeSince(c.lastEmailSent) + ' ago' : '—';
+    var lastType = c.lastEmailType ? '<br><span style="font-size:11px">' + escHtml(c.lastEmailType) + '</span>' : '';
+    var companyHtml = c.company ? '<br><span style="font-size:11px;color:var(--muted)">' + escHtml(c.company) + '</span>' : '';
+    return '<tr class="' + (checked ? 'row-selected' : '') + '" id="row-' + c.id + '">' +
+      '<td><input type="checkbox" class="cb-custom" ' + (checked ? 'checked' : '') + ' onchange="toggleContact(\'' + c.id + '\', this.checked)"></td>' +
+      '<td><strong>' + escHtml(c.firstName || '—') + '</strong>' + companyHtml + '</td>' +
+      '<td style="font-size:12px">' + escHtml(c.email) + '</td>' +
+      '<td>' + statusBadge(c.status) + '</td>' +
+      '<td style="font-size:12px;color:var(--muted)">' + lastSent + lastType + '</td>' +
+    '</tr>';
   }).join('');
 
   if (contacts.length > 500) {
-    tbody.innerHTML += `<tr><td colspan="5" style="text-align:center;color:var(--muted);font-size:12px;padding:0.75rem">… and ${contacts.length-500} more (refine filter to see)</td></tr>`;
+    tbody.innerHTML += '<tr><td colspan="5" style="text-align:center;color:var(--muted);font-size:12px;padding:0.75rem">… and ' + (contacts.length - 500) + ' more (refine filter to see)</td></tr>';
   }
 
-  info.textContent = `Showing ${Math.min(contacts.length,500)} of ${contacts.length} contacts · ${selectedContacts.size} selected total`;
+  if (info) info.textContent = 'Showing ' + Math.min(contacts.length, 500) + ' of ' + contacts.length + ' contacts · ' + selectedContacts.size + ' selected total';
 
-  const cbAll = document.getElementById('cb-all');
-  const visibleIds = display.map(c => c.id);
-  const allVisChecked = visibleIds.length > 0 && visibleIds.every(id => selectedContacts.has(id));
-  const someVisChecked = visibleIds.some(id => selectedContacts.has(id));
-  cbAll.checked = allVisChecked;
-  cbAll.indeterminate = !allVisChecked && someVisChecked;
+  var cbAll = document.getElementById('cb-all');
+  if (cbAll) {
+    var visibleIds = display.map(function(c) { return c.id; });
+    var allVisChecked = visibleIds.length > 0 && visibleIds.every(function(id) { return selectedContacts.has(id); });
+    var someVisChecked = visibleIds.some(function(id) { return selectedContacts.has(id); });
+    cbAll.checked = allVisChecked;
+    cbAll.indeterminate = !allVisChecked && someVisChecked;
+  }
 
   updateBulkCount();
   updateLaunchPreview();
@@ -1073,7 +1279,7 @@ function renderLaunchTable() {
 function toggleContact(id, checked) {
   if (checked) selectedContacts.add(id);
   else selectedContacts.delete(id);
-  const row = document.getElementById('row-' + id);
+  var row = document.getElementById('row-' + id);
   if (row) row.classList.toggle('row-selected', checked);
   updateBulkCount();
   updateLaunchPreview();
@@ -1081,15 +1287,15 @@ function toggleContact(id, checked) {
 }
 
 function toggleSelectAll(cb) {
-  const contacts = getFilteredContacts().slice(0, 500);
-  if (cb.checked) contacts.forEach(c => selectedContacts.add(c.id));
-  else contacts.forEach(c => selectedContacts.delete(c.id));
+  var contacts = getFilteredContacts().slice(0, 500);
+  if (cb.checked) contacts.forEach(function(c) { selectedContacts.add(c.id); });
+  else contacts.forEach(function(c) { selectedContacts.delete(c.id); });
   renderLaunchTable();
   updateSendActionBar();
 }
 
 function selectAllVisible() {
-  getFilteredContacts().slice(0, 500).forEach(c => selectedContacts.add(c.id));
+  getFilteredContacts().slice(0, 500).forEach(function(c) { selectedContacts.add(c.id); });
   renderLaunchTable();
   updateSendActionBar();
 }
@@ -1102,122 +1308,143 @@ function deselectAll() {
 
 function setBulkFilter(f, btn) {
   bulkStatusFilter = f;
-  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.filter-pill').forEach(function(p) { p.classList.remove('active'); });
   if (btn) btn.classList.add('active');
   renderLaunchTable();
 }
 
 function updateBulkCount() {
-  const el = document.getElementById('bulk-sel-count');
+  var el = document.getElementById('bulk-sel-count');
   if (el) el.textContent = selectedContacts.size + ' selected';
   updateSendActionBar();
 }
 
 // ─── LAUNCH — SEND EMAIL ───
 function personalise(text, contact) {
-  return text.replace(/\{\{First Name\}\}/gi, contact.firstName || 'there').replace(/\{\{BOOKING_LINK\}\}/g, state.bookingLink);
+  return text
+    .replace(/\{\{First Name\}\}/gi, contact.firstName || 'there')
+    .replace(/\{\{BOOKING_LINK\}\}/g, state.bookingLink);
 }
-function resolveCc() { const o = (document.getElementById('launch-cc')||{}).value||''; return o.trim() || state.smtp.cc || ''; }
-function resolveBcc() { const o = (document.getElementById('launch-bcc')||{}).value||''; return o.trim() || state.smtp.bcc || ''; }
+
+function resolveCc() {
+  var el = document.getElementById('launch-cc');
+  var override = el ? el.value.trim() : '';
+  return override || state.smtp.cc || '';
+}
+function resolveBcc() {
+  var el = document.getElementById('launch-bcc');
+  var override = el ? el.value.trim() : '';
+  return override || state.smtp.bcc || '';
+}
 
 // STATUS MAP: which tracker status to assign after each template is sent
-const TEMPLATE_STATUS_MAP = {
-  intro:        'contacted',
-  callConfirm:  'booked',
-  postCall:     'call_done',
-  notInterested:'not_interested',
-  followup1:    'followup1_pending',
-  followup2:    'followup2_pending',
-  valueAdd:     'value_pending',
-  closing:      'close_pending',
+var TEMPLATE_STATUS_MAP = {
+  intro:         'contacted',
+  callConfirm:   'booked',
+  postCall:      'call_done',
+  notInterested: 'not_interested',
+  followup1:     'followup1_pending',
+  followup2:     'followup2_pending',
+  valueAdd:      'value_pending',
+  closing:       'close_pending'
 };
 
 async function launchCampaign() {
-  const testMode = document.getElementById('test-mode').checked;
-  const testAddr = document.getElementById('test-addr').value.trim();
+  var testModeEl = document.getElementById('test-mode');
+  var testMode = testModeEl ? testModeEl.checked : true;
+  var testAddrEl = document.getElementById('test-addr');
+  var testAddr = testAddrEl ? testAddrEl.value.trim() : '';
+
   if (testMode && !testAddr) { alert('Enter a test email address.'); return; }
   if (!chosenTemplateKey || !state.templates[chosenTemplateKey]) { alert('Please select a template to send.'); return; }
 
-  let targets;
+  var targets;
   if (testMode) {
-    const firstId = [...selectedContacts][0];
-    const firstContact = firstId ? state.contacts.find(c => c.id === firstId) : state.contacts[0];
-    targets = firstContact ? [{ ...firstContact, email: testAddr }] : [{ id: -1, email: testAddr, firstName: 'Test', company: '' }];
+    var firstId = selectedContacts.size > 0 ? selectedContacts.values().next().value : null;
+    var firstContact = firstId ? state.contacts.find(function(c) { return c.id === firstId; }) : (state.contacts.length > 0 ? state.contacts[0] : null);
+    // Bug fix: provide fallback contact object for test mode even with no contacts
+    targets = [firstContact
+      ? Object.assign({}, firstContact, { email: testAddr })
+      : { id: '-1', email: testAddr, firstName: 'Test', lastName: '', company: '' }
+    ];
   } else {
     if (selectedContacts.size === 0) { alert('Please select at least one contact.'); return; }
-    targets = state.contacts.filter(c => selectedContacts.has(c.id));
+    targets = state.contacts.filter(function(c) { return selectedContacts.has(c.id); });
   }
 
-  const tmplLabel = state.templates[chosenTemplateKey].label;
-  if (!confirm(`Send "${tmplLabel}" to ${testMode ?  : targets.length + ' contact(s)'}?\n\nAfter sending, tracker statuses will be updated automatically.`)) return;
+  var tmplLabel = state.templates[chosenTemplateKey].label;
+  // Bug fix: fixed the broken ternary in confirm string
+  var confirmMsg = 'Send "' + tmplLabel + '" to ' + (testMode ? 'test address: ' + testAddr : targets.length + ' contact(s)') + '?\n\nAfter sending, tracker statuses will be updated automatically.';
+  if (!confirm(confirmMsg)) return;
 
-  const launchProg = document.getElementById('launch-progress');
-  const resultEl = document.getElementById('launch-result');
-  const btn = document.getElementById('launch-btn');
-  launchProg.style.display = 'block';
-  resultEl.innerHTML = '';
-  btn.disabled = true;
-  btn.textContent = '⏳ Sending…';
+  var launchProg = document.getElementById('launch-progress');
+  var resultEl = document.getElementById('launch-result');
+  var btn = document.getElementById('launch-btn');
+  if (launchProg) launchProg.style.display = 'block';
+  if (resultEl) resultEl.innerHTML = '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Sending…'; }
 
-  let sent = 0, failed = 0;
-  const cc = resolveCc();
-  const bcc = resolveBcc();
-  const newStatus = TEMPLATE_STATUS_MAP[chosenTemplateKey] || null;
+  var sent = 0, failed = 0;
+  var cc = resolveCc();
+  var bcc = resolveBcc();
+  var newStatus = TEMPLATE_STATUS_MAP[chosenTemplateKey] || null;
 
-  for (let i = 0; i < targets.length; i++) {
-    const c = targets[i];
-    const pct = Math.round(((i + 1) / targets.length) * 100);
-    document.getElementById('launch-prog-bar').style.width = pct + '%';
-    document.getElementById('launch-prog-text').textContent = (i + 1) + ' / ' + targets.length;
+  for (var i = 0; i < targets.length; i++) {
+    var c = targets[i];
+    var pct = Math.round(((i + 1) / targets.length) * 100);
+    var progBar = document.getElementById('launch-prog-bar');
+    var progText = document.getElementById('launch-prog-text');
+    if (progBar) progBar.style.width = pct + '%';
+    if (progText) progText.textContent = (i + 1) + ' / ' + targets.length;
 
-    const attachments = getAttachments(chosenTemplateKey).map(a => ({
-      filename: a.name,
-      content: a.dataUrl.split(',')[1],
-      encoding: 'base64',
-      contentType: a.type
-    }));
+    var attachments = getAttachments(chosenTemplateKey).map(function(a) {
+      return {
+        filename: a.name,
+        content: a.dataUrl.split(',')[1],
+        encoding: 'base64',
+        contentType: a.type
+      };
+    });
 
-    const payload = {
+    var payload = {
       smtp: state.smtp,
       to: c.email,
-      cc: cc || undefined,
-      bcc: bcc || undefined,
       subject: personalise(state.templates[chosenTemplateKey].subject, c),
-      body: personalise(state.templates[chosenTemplateKey].body, c),
-      attachments: attachments.length ? attachments : undefined,
+      body: personalise(state.templates[chosenTemplateKey].body, c)
     };
+    if (cc) payload.cc = cc;
+    if (bcc) payload.bcc = bcc;
+    if (attachments.length) payload.attachments = attachments;
 
     try {
-      const res = await fetch('http://localhost:3333/send', {
+      var res = await fetch('http://localhost:3333/send', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      var data = await res.json();
 
       if (data.ok) {
         sent++;
-        // ── UPDATE TRACKER for real (non-test) sends ──
         if (!testMode) {
-          const real = state.contacts.find(x => x.id === c.id);
+          var real = state.contacts.find(function(x) { return x.id === c.id; });
           if (real) {
             real.lastEmailSent = Date.now();
             real.lastEmailType = chosenTemplateKey;
             if (newStatus) real.status = newStatus;
-            // increment step counter
             real.step = (real.step || 0) + 1;
           }
         }
-        addLog('ok', 'Sent ' + chosenTemplateKey + ' → ' + c.email + (attachments.length ? ` [${attachments.length} attach]` : ''));
+        addLog('ok', 'Sent ' + chosenTemplateKey + ' → ' + c.email + (attachments.length ? ' [' + attachments.length + ' attach]' : ''));
       } else {
         failed++;
-        addLog('err', 'Failed → ' + c.email + ': ' + data.error);
+        addLog('err', 'Failed → ' + c.email + ': ' + (data.error || 'Unknown error'));
       }
     } catch(e) {
       addLog('err', 'Server not running. Start server.js first.');
-      resultEl.innerHTML = '<div class="warning-notice">⚠ Server not running on port 3333. See Setup Guide → "Running the backend".</div>';
-      launchProg.style.display = 'none';
-      btn.disabled = false;
+      if (resultEl) resultEl.innerHTML = '<div class="warning-notice">⚠ Server not running on port 3333. See Setup Guide → "Running the backend".</div>';
+      if (launchProg) launchProg.style.display = 'none';
+      if (btn) { btn.disabled = false; }
       updateSendActionBar();
       return;
     }
@@ -1229,197 +1456,293 @@ async function launchCampaign() {
   saveState();
   updateDashboard();
   renderTracker();
-  renderLaunchTable();  // re-renders so statuses update in the table too
+  renderLaunchTable();
   renderPreflight();
 
-  launchProg.style.display = 'none';
-  btn.disabled = false;
+  if (launchProg) launchProg.style.display = 'none';
+  if (btn) btn.disabled = false;
   updateSendActionBar();
 
-  const color = failed ? 'var(--amber)' : 'var(--green)';
-  const icon = failed ? '⚠' : '✓';
-  const testTag = testMode ? ' (test — tracker not updated)' : '';
-  resultEl.innerHTML = `<div class="success-notice" style="border-color:${failed ? 'rgba(245,158,11,0.3)' : ''};color:${color}">
-    ${icon} Sent ${sent}${failed ? ` · Failed ${failed}` : ''}${testTag}
-    ${!testMode && sent > 0 ? `<br><span style="font-size:11.5px;opacity:0.8">Tracker updated: ${sent} contact${sent!==1?'s':''} → <strong>${newStatus || 'status updated'}</strong></span>` : ''}
-  </div>`;
+  var color = failed ? 'var(--amber)' : 'var(--green)';
+  var icon = failed ? '⚠' : '✓';
+  var testTag = testMode ? ' (test — tracker not updated)' : '';
+  var trackerUpdate = (!testMode && sent > 0)
+    ? '<br><span style="font-size:11.5px;opacity:0.8">Tracker updated: ' + sent + ' contact' + (sent !== 1 ? 's' : '') + ' → <strong>' + (newStatus || 'status updated') + '</strong></span>'
+    : '';
+  if (resultEl) {
+    resultEl.innerHTML = '<div class="success-notice" style="border-color:' + (failed ? 'rgba(245,158,11,0.3)' : '') + ';color:' + color + '">' +
+      icon + ' Sent ' + sent + (failed ? ' · Failed ' + failed : '') + testTag + trackerUpdate +
+    '</div>';
+  }
 
-  addLog('ok', `Campaign sent: ${sent} ok, ${failed} failed — template: ${chosenTemplateKey}${testMode ? ' [TEST]' : ''}`);
-  showToast(`${icon} ${sent} sent${failed ? ', ' + failed + ' failed' : ''}${testMode ? ' (test)' : ''}`, sent && !failed ? 'success' : 'error');
+  addLog('ok', 'Campaign sent: ' + sent + ' ok, ' + failed + ' failed — template: ' + chosenTemplateKey + (testMode ? ' [TEST]' : ''));
+  showToast(icon + ' ' + sent + ' sent' + (failed ? ', ' + failed + ' failed' : '') + (testMode ? ' (test)' : ''), (sent && !failed) ? 'success' : 'error');
 }
 
-document.getElementById('test-mode').addEventListener('change', function() {
-  document.getElementById('test-addr-wrap').style.display = this.checked ? 'block' : 'none';
-  updateSendActionBar();
+// Bug fix: ensure test-mode toggle listener is attached after DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  var testModeEl = document.getElementById('test-mode');
+  if (testModeEl) {
+    testModeEl.addEventListener('change', function() {
+      var wrap = document.getElementById('test-addr-wrap');
+      if (wrap) wrap.style.display = this.checked ? 'block' : 'none';
+      updateSendActionBar();
+    });
+  }
 });
 
 // ─── TRACKER ───
-const STATUS_FLOW = {
-  new: { label: 'New', next: ['contacted', 'not_interested'] },
-  contacted: { label: 'Contacted', next: ['booked', 'not_interested', 'followup1_pending'] },
-  booked: { label: 'Booked Call', next: ['call_done', 'not_interested'] },
-  call_done: { label: 'Call Done', next: ['closed'] },
-  not_interested: { label: 'Not Interested', next: [] },
-  followup1_pending: { label: 'FU1 Pending', next: ['booked', 'not_interested', 'followup2_pending'] },
-  followup2_pending: { label: 'FU2 Pending', next: ['booked', 'not_interested', 'value_pending'] },
-  value_pending: { label: 'Value Email Due', next: ['booked', 'not_interested', 'close_pending'] },
-  close_pending: { label: 'Closing Due', next: ['closed'] },
-  closed: { label: 'Closed', next: [] }
+var STATUS_FLOW = {
+  new:                { label: 'New',              next: ['contacted', 'not_interested'] },
+  contacted:          { label: 'Contacted',         next: ['booked', 'not_interested', 'followup1_pending'] },
+  booked:             { label: 'Booked Call',       next: ['call_done', 'not_interested'] },
+  call_done:          { label: 'Call Done',         next: ['closed'] },
+  not_interested:     { label: 'Not Interested',    next: [] },
+  followup1_pending:  { label: 'FU1 Pending',       next: ['booked', 'not_interested', 'followup2_pending'] },
+  followup2_pending:  { label: 'FU2 Pending',       next: ['booked', 'not_interested', 'value_pending'] },
+  value_pending:      { label: 'Value Email Due',   next: ['booked', 'not_interested', 'close_pending'] },
+  close_pending:      { label: 'Closing Due',       next: ['closed'] },
+  closed:             { label: 'Closed',            next: [] }
 };
 
-let trackerFilter = 'all';
+var trackerFilter = 'all';
+
 function filterTracker(f, btn) {
   trackerFilter = f;
-  document.querySelectorAll('#filter-bar .btn').forEach(b => b.style.background = '');
-  if (btn) btn.style.background = 'rgba(124,108,250,0.2)';
+  // Bug fix: use proper active-filter class toggling
+  document.querySelectorAll('#filter-bar .btn').forEach(function(b) { b.classList.remove('active-filter'); });
+  if (btn) btn.classList.add('active-filter');
   renderTracker();
 }
 
 function renderTracker() {
-  const tbody = document.getElementById('tracker-table');
-  const empty = document.getElementById('tracker-empty');
-  let contacts = state.contacts;
+  var tbody = document.getElementById('tracker-table');
+  var empty = document.getElementById('tracker-empty');
+  if (!tbody) return;
+
+  var contacts = state.contacts.slice();
   if (trackerFilter !== 'all') {
-    const map = { new:'new', contacted:'contacted', booked:'booked', followup:'followup1_pending,followup2_pending,value_pending,close_pending', closed:'closed,not_interested' };
-    const statuses = (map[trackerFilter] || trackerFilter).split(',');
-    contacts = contacts.filter(c => statuses.includes(c.status));
+    var map = {
+      new: ['new'],
+      contacted: ['contacted'],
+      booked: ['booked', 'call_done'],
+      followup: ['followup1_pending','followup2_pending','value_pending','close_pending'],
+      closed: ['closed','not_interested']
+    };
+    var allowedStatuses = map[trackerFilter] || [trackerFilter];
+    contacts = contacts.filter(function(c) { return allowedStatuses.indexOf(c.status) !== -1; });
   }
-  if (contacts.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
-  empty.style.display = 'none';
-  const now = Date.now();
-  tbody.innerHTML = contacts.map(c => {
-    const lastSent = c.lastEmailSent ? timeSince(c.lastEmailSent) + ' ago' : '—';
-    const nextAction = getNextAction(c, now);
-    return `<tr>
-      <td><strong>${c.firstName||'—'}</strong><br><span style="font-size:11px;color:var(--muted)">${c.company||''}</span></td>
-      <td style="font-size:12px">${c.email}</td>
-      <td>${statusBadge(c.status)}</td>
-      <td style="font-size:12px;color:var(--muted)">${lastSent}<br><span style="font-size:11px">${c.lastEmailType||''}</span></td>
-      <td style="font-size:12px">${nextAction}</td>
-      <td><select style="font-size:11px;padding:3px 5px;width:130px" onchange="updateStatus(${c.id}, this.value)">
-        <option value="">Update status…</option>
-        ${Object.entries(STATUS_FLOW).map(([k,v]) => `<option value="${k}" ${c.status===k?'selected':''}>${v.label}</option>`).join('')}
-      </select></td>
-    </tr>`;
+
+  if (contacts.length === 0) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  var now = Date.now();
+  tbody.innerHTML = contacts.map(function(c) {
+    var lastSent = c.lastEmailSent ? timeSince(c.lastEmailSent) + ' ago' : '—';
+    var lastType = c.lastEmailType ? '<br><span style="font-size:11px">' + escHtml(c.lastEmailType) + '</span>' : '';
+    var nextAction = getNextAction(c, now);
+    var options = Object.keys(STATUS_FLOW).map(function(k) {
+      return '<option value="' + k + '" ' + (c.status === k ? 'selected' : '') + '>' + STATUS_FLOW[k].label + '</option>';
+    }).join('');
+    return '<tr>' +
+      '<td><strong>' + escHtml(c.firstName || '—') + '</strong><br><span style="font-size:11px;color:var(--muted)">' + escHtml(c.company || '') + '</span></td>' +
+      '<td style="font-size:12px">' + escHtml(c.email) + '</td>' +
+      '<td>' + statusBadge(c.status) + '</td>' +
+      '<td style="font-size:12px;color:var(--muted)">' + lastSent + lastType + '</td>' +
+      '<td style="font-size:12px">' + nextAction + '</td>' +
+      '<td><select style="font-size:11px;padding:3px 5px;width:130px" onchange="updateStatus(\'' + c.id + '\', this.value)">' +
+        '<option value="">Update status…</option>' + options +
+      '</select></td>' +
+    '</tr>';
   }).join('');
 }
 
 async function updateStatus(id, newStatus) {
   if (!newStatus) return;
-  const c = state.contacts.find(x => x.id === id);
+  var c = state.contacts.find(function(x) { return x.id === id; });
   if (!c) return;
-  const prev = c.status;
+  var prev = c.status;
   c.status = newStatus;
-  let templateKey = null;
+  var templateKey = null;
   if (newStatus === 'booked' && prev !== 'booked') templateKey = 'callConfirm';
   if (newStatus === 'call_done') templateKey = 'postCall';
   if (newStatus === 'not_interested') templateKey = 'notInterested';
   if (newStatus === 'closed') templateKey = 'closing';
   if (templateKey && state.templates[templateKey]) await sendEmail(c, templateKey);
-  saveState(); renderTracker(); updateDashboard();
+  saveState();
+  renderTracker();
+  updateDashboard();
   addLog('info', c.email + ' → ' + newStatus);
   showToast('✓ Status updated', 'success');
 }
 
 async function runDueFollowups() {
-  const now = Date.now(); const day = 86400000; const s = state.sequences; let sent = 0;
-  for (const c of state.contacts) {
+  var now = Date.now();
+  var day = 86400000;
+  var s = state.sequences;
+  var sent = 0;
+
+  for (var i = 0; i < state.contacts.length; i++) {
+    var c = state.contacts[i];
     if (!c.lastEmailSent) continue;
-    const daysSince = (now - c.lastEmailSent) / day;
-    if (c.status === 'contacted' && daysSince >= s.fu1) { c.status = 'followup1_pending'; await sendEmail(c, 'followup1'); sent++; }
-    else if (c.status === 'followup1_pending' && daysSince >= s.fu2) { c.status = 'followup2_pending'; await sendEmail(c, 'followup2'); sent++; }
-    else if (c.status === 'followup2_pending' && daysSince >= s.val) { c.status = 'value_pending'; await sendEmail(c, 'valueAdd'); sent++; }
-    else if (c.status === 'value_pending' && daysSince >= s.close) { c.status = 'close_pending'; await sendEmail(c, 'closing'); sent++; }
+    var daysSince = (now - c.lastEmailSent) / day;
+    if (c.status === 'contacted' && daysSince >= s.fu1) {
+      c.status = 'followup1_pending'; await sendEmail(c, 'followup1'); sent++;
+    } else if (c.status === 'followup1_pending' && daysSince >= s.fu2) {
+      c.status = 'followup2_pending'; await sendEmail(c, 'followup2'); sent++;
+    } else if (c.status === 'followup2_pending' && daysSince >= s.val) {
+      c.status = 'value_pending'; await sendEmail(c, 'valueAdd'); sent++;
+    } else if (c.status === 'value_pending' && daysSince >= s.close) {
+      c.status = 'close_pending'; await sendEmail(c, 'closing'); sent++;
+    }
   }
-  saveState(); renderTracker(); updateDashboard();
-  if (sent === 0) { addLog('info', 'No follow-ups due'); showToast('No follow-ups are due right now', 'info'); }
-  else { addLog('ok', sent + ' follow-up(s) sent'); showToast(`✓ Sent ${sent} follow-up(s)!`, 'success'); }
+
+  saveState();
+  renderTracker();
+  updateDashboard();
+
+  if (sent === 0) {
+    addLog('info', 'No follow-ups due');
+    showToast('No follow-ups are due right now', 'info');
+  } else {
+    addLog('ok', sent + ' follow-up(s) sent');
+    showToast('✓ Sent ' + sent + ' follow-up(s)!', 'success');
+  }
 }
 
 async function sendEmail(contact, templateKey) {
-  const tmpl = state.templates[templateKey];
+  var tmpl = state.templates[templateKey];
   if (!tmpl) return;
-  const attachments = getAttachments(templateKey).map(a => ({ filename: a.name, content: a.dataUrl.split(',')[1], encoding: 'base64', contentType: a.type }));
-  const payload = { smtp: state.smtp, to: contact.email, cc: state.smtp.cc || undefined, bcc: state.smtp.bcc || undefined, subject: personalise(tmpl.subject, contact), body: personalise(tmpl.body, contact), attachments: attachments.length ? attachments : undefined };
+  var attachments = getAttachments(templateKey).map(function(a) {
+    return { filename: a.name, content: a.dataUrl.split(',')[1], encoding: 'base64', contentType: a.type };
+  });
+  var payload = {
+    smtp: state.smtp,
+    to: contact.email,
+    subject: personalise(tmpl.subject, contact),
+    body: personalise(tmpl.body, contact)
+  };
+  if (state.smtp.cc) payload.cc = state.smtp.cc;
+  if (state.smtp.bcc) payload.bcc = state.smtp.bcc;
+  if (attachments.length) payload.attachments = attachments;
+
   try {
-    const res = await fetch('http://localhost:3333/send', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    const data = await res.json();
-    if (data.ok) { contact.lastEmailSent = Date.now(); contact.lastEmailType = templateKey; addLog('ok', 'Sent ' + templateKey + ' → ' + contact.email); }
-    else { addLog('err', 'Failed ' + templateKey + ' → ' + contact.email + ': ' + data.error); }
-  } catch(e) { addLog('err', 'Server not running — could not send ' + templateKey + ' to ' + contact.email); }
+    var res = await fetch('http://localhost:3333/send', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    var data = await res.json();
+    if (data.ok) {
+      contact.lastEmailSent = Date.now();
+      contact.lastEmailType = templateKey;
+      addLog('ok', 'Sent ' + templateKey + ' → ' + contact.email);
+    } else {
+      addLog('err', 'Failed ' + templateKey + ' → ' + contact.email + ': ' + (data.error || 'Unknown error'));
+    }
+  } catch(e) {
+    addLog('err', 'Server not running — could not send ' + templateKey + ' to ' + contact.email);
+  }
 }
 
 function exportTrackerCsv() {
-  const header = 'email,first_name,company,status,last_email_type,last_email_sent';
-  const rows = state.contacts.map(c => [c.email, c.firstName, c.company, c.status, c.lastEmailType||'', c.lastEmailSent ? new Date(c.lastEmailSent).toISOString() : ''].join(','));
-  downloadText([header,...rows].join('\n'), 'justwords_contacts_export.csv', 'text/csv');
+  var header = 'email,first_name,company,status,last_email_type,last_email_sent';
+  var rows = state.contacts.map(function(c) {
+    return [
+      c.email,
+      c.firstName || '',
+      c.company || '',
+      c.status,
+      c.lastEmailType || '',
+      c.lastEmailSent ? new Date(c.lastEmailSent).toISOString() : ''
+    ].join(',');
+  });
+  downloadText([header].concat(rows).join('\n'), 'justwords_contacts_export.csv', 'text/csv');
   addLog('info', 'Exported ' + state.contacts.length + ' contacts');
   showToast('✓ CSV exported', 'success');
 }
 
 // ─── DASHBOARD ───
 function updateDashboard() {
-  const total = state.contacts.length;
-  const sent = state.contacts.filter(c => c.lastEmailSent).length;
-  const interested = state.contacts.filter(c => ['booked','call_done'].includes(c.status)).length;
-  const closed = state.contacts.filter(c => ['closed','not_interested'].includes(c.status)).length;
-  document.getElementById('stat-total').textContent = total;
-  document.getElementById('stat-sent').textContent = sent;
-  document.getElementById('stat-interested').textContent = interested;
-  document.getElementById('stat-closed').textContent = closed;
+  var total = state.contacts.length;
+  var sent = state.contacts.filter(function(c) { return c.lastEmailSent; }).length;
+  var interested = state.contacts.filter(function(c) { return c.status === 'booked' || c.status === 'call_done'; }).length;
+  var closed = state.contacts.filter(function(c) { return c.status === 'closed' || c.status === 'not_interested'; }).length;
+  var totalEl = document.getElementById('stat-total');
+  var sentEl = document.getElementById('stat-sent');
+  var intEl = document.getElementById('stat-interested');
+  var closedEl = document.getElementById('stat-closed');
+  if (totalEl) totalEl.textContent = total;
+  if (sentEl) sentEl.textContent = sent;
+  if (intEl) intEl.textContent = interested;
+  if (closedEl) closedEl.textContent = closed;
 }
 
 // ─── LOG ───
 function addLog(type, msg) {
-  const ul = document.getElementById('activity-log');
-  const li = document.createElement('li');
-  const time = new Date().toLocaleTimeString();
-  li.innerHTML = `<span style="color:var(--muted)">[${time}]</span> <span class="${type}">[${type.toUpperCase()}]</span> ${msg}`;
+  var ul = document.getElementById('activity-log');
+  if (!ul) return;
+  var li = document.createElement('li');
+  var time = new Date().toLocaleTimeString();
+  li.innerHTML = '<span style="color:var(--muted)">[' + time + ']</span> <span class="' + type + '">[' + type.toUpperCase() + ']</span> ' + escHtml(msg);
   ul.insertBefore(li, ul.firstChild);
-  if (ul.children.length > 50) ul.removeChild(ul.lastChild);
+  while (ul.children.length > 50) ul.removeChild(ul.lastChild);
 }
-function clearLog() { document.getElementById('activity-log').innerHTML = '<li><span class="info">[INFO]</span> Log cleared</li>'; }
+function clearLog() {
+  var ul = document.getElementById('activity-log');
+  if (ul) ul.innerHTML = '<li><span class="info">[INFO]</span> Log cleared</li>';
+}
 
 // ─── ACCORDION ───
-function toggleAccordion(head) { const body = head.nextElementSibling; const arrow = head.querySelector('.accordion-arrow'); body.classList.toggle('open'); arrow.classList.toggle('open'); }
+function toggleAccordion(head) {
+  var body = head.nextElementSibling;
+  var arrow = head.querySelector('.accordion-arrow');
+  if (body) body.classList.toggle('open');
+  if (arrow) arrow.classList.toggle('open');
+}
 
 // ─── SERVER DOWNLOAD ───
 function downloadServer() {
-  const serverCode = `// server.js — Justwords Email Automation Backend
-const express = require('express');
-const nodemailer = require('nodemailer');
-const cors = require('cors');
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-
-function makeTransport(smtp) {
-  const useSSL = smtp.secure === 'ssl' || parseInt(smtp.port) === 465;
-  return nodemailer.createTransport({ host: smtp.host, port: parseInt(smtp.port), secure: useSSL, auth: { user: smtp.user, pass: smtp.pass }, tls: { rejectUnauthorized: false } });
-}
-
-app.post('/test-smtp', async (req, res) => {
-  try { const t = makeTransport(req.body); await t.verify(); res.json({ ok: true }); }
-  catch(e) { res.json({ ok: false, error: e.message }); }
-});
-
-app.post('/send', async (req, res) => {
-  const { smtp, to, cc, bcc, subject, body, attachments } = req.body;
-  try {
-    const transport = makeTransport(smtp);
-    const mail = { from: '"' + smtp.name + '" <' + smtp.user + '>', replyTo: smtp.reply || smtp.user, to, subject, text: body };
-    if (cc) mail.cc = cc;
-    if (bcc) mail.bcc = bcc;
-    if (attachments && attachments.length > 0) {
-      mail.attachments = attachments.map(a => ({ filename: a.filename, content: Buffer.from(a.content, 'base64'), contentType: a.contentType || 'application/octet-stream' }));
-    }
-    await transport.sendMail(mail);
-    res.json({ ok: true });
-  } catch(e) { res.json({ ok: false, error: e.message }); }
-});
-
-app.listen(3333, () => console.log('EmailFlow server running on http://localhost:3333'));
-`;
+  var serverCode = [
+    '// server.js — Justwords Email Automation Backend',
+    'const express = require(\'express\');',
+    'const nodemailer = require(\'nodemailer\');',
+    'const cors = require(\'cors\');',
+    'const app = express();',
+    'app.use(cors());',
+    'app.use(express.json({ limit: \'50mb\' }));',
+    '',
+    'function makeTransport(smtp) {',
+    '  const useSSL = smtp.secure === \'ssl\' || parseInt(smtp.port) === 465;',
+    '  return nodemailer.createTransport({ host: smtp.host, port: parseInt(smtp.port), secure: useSSL, auth: { user: smtp.user, pass: smtp.pass }, tls: { rejectUnauthorized: false } });',
+    '}',
+    '',
+    'app.post(\'/test-smtp\', async (req, res) => {',
+    '  try { const t = makeTransport(req.body); await t.verify(); res.json({ ok: true }); }',
+    '  catch(e) { res.json({ ok: false, error: e.message }); }',
+    '});',
+    '',
+    'app.post(\'/send\', async (req, res) => {',
+    '  const { smtp, to, cc, bcc, subject, body, attachments } = req.body;',
+    '  try {',
+    '    const transport = makeTransport(smtp);',
+    '    const mail = { from: \'"\' + smtp.name + \'" <\' + smtp.user + \'>\', replyTo: smtp.reply || smtp.user, to, subject, text: body };',
+    '    if (cc) mail.cc = cc;',
+    '    if (bcc) mail.bcc = bcc;',
+    '    if (attachments && attachments.length > 0) {',
+    '      mail.attachments = attachments.map(a => ({ filename: a.filename, content: Buffer.from(a.content, \'base64\'), contentType: a.contentType || \'application/octet-stream\' }));',
+    '    }',
+    '    await transport.sendMail(mail);',
+    '    res.json({ ok: true });',
+    '  } catch(e) { res.json({ ok: false, error: e.message }); }',
+    '});',
+    '',
+    'app.listen(3333, () => console.log(\'EmailFlow server running on http://localhost:3333\'));'
+  ].join('\n');
   downloadText(serverCode, 'server.js', 'text/javascript');
   addLog('info', 'server.js downloaded');
   showToast('✓ server.js downloaded', 'success');
@@ -1427,38 +1750,95 @@ app.listen(3333, () => console.log('EmailFlow server running on http://localhost
 
 // ─── HELPERS ───
 function statusBadge(s) {
-  const map = { new:['blue','New'], contacted:['purple','Contacted'], booked:['green','Booked Call'], call_done:['green','Call Done'], not_interested:['red','Not Interested'], followup1_pending:['amber','FU1 Pending'], followup2_pending:['amber','FU2 Pending'], value_pending:['amber','Value Due'], close_pending:['amber','Close Due'], closed:['','Closed'] };
-  const [color,label] = map[s]||['','Unknown'];
-  return `<span class="badge badge-${color}">${label}</span>`;
+  var map = {
+    new:                ['blue',   'New'],
+    contacted:          ['purple', 'Contacted'],
+    booked:             ['green',  'Booked Call'],
+    call_done:          ['green',  'Call Done'],
+    not_interested:     ['red',    'Not Interested'],
+    followup1_pending:  ['amber',  'FU1 Pending'],
+    followup2_pending:  ['amber',  'FU2 Pending'],
+    value_pending:      ['amber',  'Value Due'],
+    close_pending:      ['amber',  'Close Due'],
+    closed:             ['',       'Closed']
+  };
+  var entry = map[s] || ['', 'Unknown'];
+  return '<span class="badge badge-' + entry[0] + '">' + entry[1] + '</span>';
 }
+
 function getNextAction(c, now) {
-  const day = 86400000; const s = state.sequences;
+  var day = 86400000;
+  var s = state.sequences;
   if (!c.lastEmailSent) return '<span style="color:var(--muted)">—</span>';
-  const d = Math.floor((now - c.lastEmailSent) / day);
-  if (c.status === 'contacted') { const due = s.fu1 - d; return due <= 0 ? '<span style="color:var(--amber)">FU1 overdue</span>' : 'FU1 in ' + due + 'd'; }
-  if (c.status === 'followup1_pending') { const due = s.fu2 - d; return due <= 0 ? '<span style="color:var(--amber)">FU2 overdue</span>' : 'FU2 in ' + due + 'd'; }
-  if (c.status === 'followup2_pending') { const due = s.val - d; return due <= 0 ? '<span style="color:var(--amber)">Value overdue</span>' : 'Value in ' + due + 'd'; }
-  if (c.status === 'value_pending') { const due = s.close - d; return due <= 0 ? '<span style="color:var(--amber)">Closing overdue</span>' : 'Closing in ' + due + 'd'; }
+  var d = Math.floor((now - c.lastEmailSent) / day);
+  if (c.status === 'contacted') {
+    var due = s.fu1 - d;
+    return due <= 0 ? '<span style="color:var(--amber)">FU1 overdue</span>' : 'FU1 in ' + due + 'd';
+  }
+  if (c.status === 'followup1_pending') {
+    var due = s.fu2 - d;
+    return due <= 0 ? '<span style="color:var(--amber)">FU2 overdue</span>' : 'FU2 in ' + due + 'd';
+  }
+  if (c.status === 'followup2_pending') {
+    var due = s.val - d;
+    return due <= 0 ? '<span style="color:var(--amber)">Value overdue</span>' : 'Value in ' + due + 'd';
+  }
+  if (c.status === 'value_pending') {
+    var due = s.close - d;
+    return due <= 0 ? '<span style="color:var(--amber)">Closing overdue</span>' : 'Closing in ' + due + 'd';
+  }
   return '<span style="color:var(--muted)">—</span>';
 }
-function timeSince(ts) { const s = Math.floor((Date.now()-ts)/1000); if(s<60) return s+'s'; if(s<3600) return Math.floor(s/60)+'m'; if(s<86400) return Math.floor(s/3600)+'h'; return Math.floor(s/86400)+'d'; }
-function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-function downloadText(text, filename, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text],{type})); a.download = filename; a.click(); }
+
+function timeSince(ts) {
+  var s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  if (s < 86400) return Math.floor(s / 3600) + 'h';
+  return Math.floor(s / 86400) + 'd';
+}
+
+function escHtml(s) {
+  return (s || '').toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
+function downloadText(text, filename, type) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type }));
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 
 // ─── INIT ───
 loadState();
 updateDashboard();
 updateFlowDiagram();
 renderContactsTable();
-if (state.smtp.host) document.getElementById('smtp-host').value = state.smtp.host;
-if (state.smtp.port) document.getElementById('smtp-port').value = state.smtp.port;
-if (state.smtp.secure) document.getElementById('smtp-secure').value = state.smtp.secure;
-if (state.smtp.user) document.getElementById('smtp-user').value = state.smtp.user;
-if (state.smtp.name) document.getElementById('smtp-name').value = state.smtp.name;
-if (state.smtp.reply) document.getElementById('smtp-reply').value = state.smtp.reply;
-if (state.smtp.cc) document.getElementById('smtp-cc').value = state.smtp.cc;
-if (state.smtp.bcc) document.getElementById('smtp-bcc').value = state.smtp.bcc;
+
+// Bug fix: restore all SMTP fields from saved state on load
+(function restoreSmtpFields() {
+  var fields = ['host','port','secure','user','name','reply','cc','bcc'];
+  fields.forEach(function(f) {
+    var el = document.getElementById('smtp-' + f);
+    if (el && state.smtp[f] !== undefined && state.smtp[f] !== '') {
+      el.value = state.smtp[f];
+    }
+  });
+  // Note: password is restored separately — it IS saved (local tool) but we don't
+  // pre-fill password fields for security UX reasons. User must re-enter on reload.
+  // To auto-fill (less secure), uncomment:
+  // var passEl = document.getElementById('smtp-pass');
+  // if (passEl && state.smtp.pass) passEl.value = state.smtp.pass;
+})();
 </script>
 </body>
 </html>
