@@ -999,7 +999,7 @@ function updateSendActionBar() {
   const tmplName = chosenTemplateKey && state.templates[chosenTemplateKey] ? state.templates[chosenTemplateKey].label : 'No template selected';
 
   if (testMode) {
-    countEl.textContent = '1 test address';
+    countEl.textContent = '1 address';
     btn.textContent = 'Send Email';
     btn.disabled = false;
   } else {
@@ -1149,7 +1149,7 @@ async function launchCampaign() {
   }
 
   const tmplLabel = state.templates[chosenTemplateKey].label;
-  if (!confirm(`Send "${tmplLabel}" to ${testMode ? '1 test address' : targets.length + ' contact(s)'}?\n\nAfter sending, tracker statuses will be updated automatically.`)) return;
+  if (!confirm(`Send "${tmplLabel}" to ${testMode ? '1 address' : targets.length + ' contact(s)'}?\n\nAfter sending, tracker statuses will be updated automatically.`)) return;
 
   const launchProg = document.getElementById('launch-progress');
   const resultEl = document.getElementById('launch-result');
