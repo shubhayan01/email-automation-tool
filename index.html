@@ -177,6 +177,14 @@
   .tmpl-card-label { font-size: 13px; font-weight: 500; color: var(--text); }
   .tmpl-card-sub { font-size: 11px; color: var(--muted); }
 
+  /* ── SEND BUTTON AREA ── */
+  .send-action-bar { background: rgba(124,108,250,0.06); border: 1px solid rgba(124,108,250,0.2); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+  .send-summary { font-size: 13px; color: var(--muted); }
+  .send-summary strong { color: var(--accent2); font-size: 15px; }
+  .btn-send-big { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 0.7rem 1.75rem; font-size: 15px; font-weight: 600; cursor: pointer; font-family: var(--font); display: inline-flex; align-items: center; gap: 8px; transition: all 0.15s; }
+  .btn-send-big:hover { background: #6b5ce7; transform: translateY(-1px); }
+  .btn-send-big:disabled { background: #4a4070; opacity: 0.6; cursor: not-allowed; transform: none; }
+
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
@@ -456,10 +464,36 @@
         <div style="font-size:11.5px;color:var(--muted);margin-top:0.5rem" id="launch-table-info"></div>
       </div>
 
-      <!-- STEP 3: CC/BCC + options -->
+      <!-- STEP 3: Send action bar + options -->
       <div class="card">
-        <h3>Step 3 — Options &amp; send</h3>
+        <h3>Step 3 — Options &amp; Send</h3>
 
+        <!-- ── PROMINENT SEND BUTTON ── -->
+        <div class="send-action-bar" id="send-action-bar">
+          <div class="send-summary">
+            Ready to send <strong id="send-count-label">0 contacts</strong>
+            <div style="font-size:12px;margin-top:2px;color:var(--muted)" id="send-tmpl-label">No template selected</div>
+          </div>
+          <button class="btn-send-big" id="launch-btn" onclick="launchCampaign()">
+            🚀 Send Email to Selected Contacts
+          </button>
+        </div>
+
+        <!-- Progress bar -->
+        <div id="launch-progress" style="display:none" class="mb-2">
+          <div class="flex justify-between mb-1">
+            <span style="font-size:12px;color:var(--muted)">Sending…</span>
+            <span style="font-size:12px;color:var(--muted)" id="launch-prog-text">0 / 0</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="launch-prog-bar" style="width:0%"></div></div>
+        </div>
+
+        <div id="launch-result" style="margin-bottom:0.75rem;font-size:13px"></div>
+
+        <!-- Divider before options -->
+        <div style="border-top:1px solid var(--border);margin:1rem 0"></div>
+
+        <!-- CC / BCC override -->
         <div style="margin-bottom:0.75rem">
           <p style="font-size:12.5px;color:var(--muted);margin-bottom:0.5rem">Override CC/BCC for this send (leave blank to use global SMTP settings):</p>
           <div class="cc-bcc-toggle">
@@ -476,6 +510,7 @@
           </div>
         </div>
 
+        <!-- Test mode toggle -->
         <div class="flex items-center gap-3 mb-2">
           <label class="toggle"><input type="checkbox" id="test-mode" checked><span class="toggle-slider"></span></label>
           <div>
@@ -486,19 +521,6 @@
         <div class="mb-2" id="test-addr-wrap">
           <label>Test send-to address</label>
           <input type="email" id="test-addr" placeholder="your@email.com">
-        </div>
-
-        <div id="launch-progress" style="display:none" class="mb-2">
-          <div class="flex justify-between mb-1">
-            <span style="font-size:12px;color:var(--muted)">Sending…</span>
-            <span style="font-size:12px;color:var(--muted)" id="launch-prog-text">0 / 0</span>
-          </div>
-          <div class="progress-bar"><div class="progress-fill" id="launch-prog-bar" style="width:0%"></div></div>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <button class="btn btn-primary" onclick="launchCampaign()" id="launch-btn">🚀 Send to Selected Contacts</button>
-          <span id="launch-result" style="font-size:13px"></span>
         </div>
       </div>
     </div>
@@ -563,7 +585,7 @@ sarah@xyz.com,Sarah,XYZ Ltd</div>
       <div class="accordion-item">
         <div class="accordion-head" onclick="toggleAccordion(this)"><span>Step 4 — Bulk-select contacts and launch</span><span class="accordion-arrow">▼</span></div>
         <div class="accordion-body">
-          <p style="font-size:13px;color:var(--muted)">In <strong style="color:var(--text)">Launch Campaign</strong>: (1) Pick which email template to send. (2) Use the contact table to check individual rows, use "Select visible" for filtered groups, or check the header checkbox to toggle all. (3) Use the status filter pills to narrow down to e.g. only "New" contacts. (4) Optionally set CC/BCC override. (5) Send a test email first, then launch.</p>
+          <p style="font-size:13px;color:var(--muted)">In <strong style="color:var(--text)">Launch Campaign</strong>: (1) Pick which email template to send. (2) Use the contact table to check individual rows, use "Select visible" for filtered groups, or check the header checkbox to toggle all. (3) Use the status filter pills to narrow down to e.g. only "New" contacts. (4) Optionally set CC/BCC override. (5) Send a test email first, then launch. After sending, the tracker updates automatically with the new status and last-sent timestamp.</p>
         </div>
       </div>
       <div class="accordion-item">
@@ -900,7 +922,7 @@ function updateFlowDiagram() {
 // LAUNCH PAGE — BULK SELECT
 // ═══════════════════════════════════════════════
 
-let selectedContacts = new Set(); // stores contact IDs
+let selectedContacts = new Set();
 let bulkStatusFilter = 'all';
 let chosenTemplateKey = 'intro';
 
@@ -908,6 +930,7 @@ function renderLaunchPage() {
   renderPreflight();
   renderTemplatePicker();
   renderLaunchTable();
+  updateSendActionBar();
 }
 
 function renderPreflight() {
@@ -937,23 +960,23 @@ function renderTemplatePicker() {
     </div>`;
   }).join('');
   updateLaunchPreview();
+  updateSendActionBar();
 }
 
 function selectTemplate(key) {
   chosenTemplateKey = key;
-  // update card styles without full re-render
   document.querySelectorAll('.tmpl-select-card').forEach(card => {
     const r = card.querySelector('input[type=radio]');
     if (r) { const isChosen = r.value === key; card.classList.toggle('chosen', isChosen); r.checked = isChosen; }
   });
   updateLaunchPreview();
+  updateSendActionBar();
 }
 
 function updateLaunchPreview() {
   const wrap = document.getElementById('preview-wrap');
   const box = document.getElementById('launch-preview-box');
   if (!wrap || !box) return;
-  // Find first selected contact for preview
   const firstId = [...selectedContacts][0];
   const c = firstId ? state.contacts.find(x => x.id === firstId) : state.contacts[0];
   if (!c || !chosenTemplateKey) { wrap.style.display = 'none'; return; }
@@ -963,6 +986,29 @@ function updateLaunchPreview() {
   const attachLine = attachments.length ? `\n📎 Attachments: ${attachments.map(a => a.name).join(', ')}` : '';
   wrap.style.display = 'block';
   box.textContent = 'To: ' + c.email + '\nSubject: ' + personalise(tmpl.subject, c) + '\n\n' + personalise(tmpl.body, c) + attachLine;
+}
+
+// ── UPDATE SEND ACTION BAR ──
+function updateSendActionBar() {
+  const testMode = document.getElementById('test-mode') ? document.getElementById('test-mode').checked : true;
+  const countEl = document.getElementById('send-count-label');
+  const tmplEl = document.getElementById('send-tmpl-label');
+  const btn = document.getElementById('launch-btn');
+  if (!countEl || !tmplEl || !btn) return;
+
+  const tmplName = chosenTemplateKey && state.templates[chosenTemplateKey] ? state.templates[chosenTemplateKey].label : 'No template selected';
+
+  if (testMode) {
+    countEl.textContent = '1 test address';
+    btn.textContent = '🧪 Send Test Email';
+    btn.disabled = false;
+  } else {
+    const n = selectedContacts.size;
+    countEl.textContent = n + ' contact' + (n !== 1 ? 's' : '');
+    btn.textContent = n === 0 ? '🚀 Send Email to Selected Contacts' : `🚀 Send Email to ${n} Contact${n !== 1 ? 's' : ''}`;
+    btn.disabled = n === 0;
+  }
+  tmplEl.textContent = 'Template: ' + tmplName;
 }
 
 // ── Bulk table rendering ──
@@ -1013,7 +1059,6 @@ function renderLaunchTable() {
 
   info.textContent = `Showing ${Math.min(contacts.length,500)} of ${contacts.length} contacts · ${selectedContacts.size} selected total`;
 
-  // Sync the header checkbox
   const cbAll = document.getElementById('cb-all');
   const visibleIds = display.map(c => c.id);
   const allVisChecked = visibleIds.length > 0 && visibleIds.every(id => selectedContacts.has(id));
@@ -1032,6 +1077,7 @@ function toggleContact(id, checked) {
   if (row) row.classList.toggle('row-selected', checked);
   updateBulkCount();
   updateLaunchPreview();
+  updateSendActionBar();
 }
 
 function toggleSelectAll(cb) {
@@ -1039,16 +1085,19 @@ function toggleSelectAll(cb) {
   if (cb.checked) contacts.forEach(c => selectedContacts.add(c.id));
   else contacts.forEach(c => selectedContacts.delete(c.id));
   renderLaunchTable();
+  updateSendActionBar();
 }
 
 function selectAllVisible() {
   getFilteredContacts().slice(0, 500).forEach(c => selectedContacts.add(c.id));
   renderLaunchTable();
+  updateSendActionBar();
 }
 
 function deselectAll() {
   selectedContacts.clear();
   renderLaunchTable();
+  updateSendActionBar();
 }
 
 function setBulkFilter(f, btn) {
@@ -1061,31 +1110,32 @@ function setBulkFilter(f, btn) {
 function updateBulkCount() {
   const el = document.getElementById('bulk-sel-count');
   if (el) el.textContent = selectedContacts.size + ' selected';
-  const btn = document.getElementById('launch-btn');
-  if (btn) {
-    const testMode = document.getElementById('test-mode') ? document.getElementById('test-mode').checked : true;
-    if (!testMode && selectedContacts.size === 0) {
-      btn.textContent = '🚀 Send to Selected Contacts';
-      btn.disabled = true;
-    } else {
-      btn.disabled = false;
-      btn.textContent = testMode ? '🚀 Send Test Email' : `🚀 Send to ${selectedContacts.size} Contact${selectedContacts.size!==1?'s':''}`;
-    }
-  }
+  updateSendActionBar();
 }
 
-// ─── LAUNCH ───
+// ─── LAUNCH — SEND EMAIL ───
 function personalise(text, contact) {
   return text.replace(/\{\{First Name\}\}/gi, contact.firstName || 'there').replace(/\{\{BOOKING_LINK\}\}/g, state.bookingLink);
 }
 function resolveCc() { const o = (document.getElementById('launch-cc')||{}).value||''; return o.trim() || state.smtp.cc || ''; }
 function resolveBcc() { const o = (document.getElementById('launch-bcc')||{}).value||''; return o.trim() || state.smtp.bcc || ''; }
 
+// STATUS MAP: which tracker status to assign after each template is sent
+const TEMPLATE_STATUS_MAP = {
+  intro:        'contacted',
+  callConfirm:  'booked',
+  postCall:     'call_done',
+  notInterested:'not_interested',
+  followup1:    'followup1_pending',
+  followup2:    'followup2_pending',
+  valueAdd:     'value_pending',
+  closing:      'close_pending',
+};
+
 async function launchCampaign() {
   const testMode = document.getElementById('test-mode').checked;
   const testAddr = document.getElementById('test-addr').value.trim();
   if (testMode && !testAddr) { alert('Enter a test email address.'); return; }
-
   if (!chosenTemplateKey || !state.templates[chosenTemplateKey]) { alert('Please select a template to send.'); return; }
 
   let targets;
@@ -1098,15 +1148,21 @@ async function launchCampaign() {
     targets = state.contacts.filter(c => selectedContacts.has(c.id));
   }
 
-  if (!confirm(`Send "${state.templates[chosenTemplateKey].label}" to ${testMode ? '1 test address' : targets.length + ' contact(s)'}?`)) return;
+  const tmplLabel = state.templates[chosenTemplateKey].label;
+  if (!confirm(`Send "${tmplLabel}" to ${testMode ? '1 test address' : targets.length + ' contact(s)'}?\n\nAfter sending, tracker statuses will be updated automatically.`)) return;
 
   const launchProg = document.getElementById('launch-progress');
   const resultEl = document.getElementById('launch-result');
+  const btn = document.getElementById('launch-btn');
   launchProg.style.display = 'block';
   resultEl.innerHTML = '';
+  btn.disabled = true;
+  btn.textContent = '⏳ Sending…';
+
   let sent = 0, failed = 0;
   const cc = resolveCc();
   const bcc = resolveBcc();
+  const newStatus = TEMPLATE_STATUS_MAP[chosenTemplateKey] || null;
 
   for (let i = 0; i < targets.length; i++) {
     const c = targets[i];
@@ -1114,23 +1170,43 @@ async function launchCampaign() {
     document.getElementById('launch-prog-bar').style.width = pct + '%';
     document.getElementById('launch-prog-text').textContent = (i + 1) + ' / ' + targets.length;
 
-    const attachments = getAttachments(chosenTemplateKey).map(a => ({ filename: a.name, content: a.dataUrl.split(',')[1], encoding: 'base64', contentType: a.type }));
+    const attachments = getAttachments(chosenTemplateKey).map(a => ({
+      filename: a.name,
+      content: a.dataUrl.split(',')[1],
+      encoding: 'base64',
+      contentType: a.type
+    }));
+
     const payload = {
-      smtp: state.smtp, to: c.email,
-      cc: cc || undefined, bcc: bcc || undefined,
+      smtp: state.smtp,
+      to: c.email,
+      cc: cc || undefined,
+      bcc: bcc || undefined,
       subject: personalise(state.templates[chosenTemplateKey].subject, c),
       body: personalise(state.templates[chosenTemplateKey].body, c),
       attachments: attachments.length ? attachments : undefined,
     };
 
     try {
-      const res = await fetch('http://localhost:3333/send', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const res = await fetch('http://localhost:3333/send', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
       const data = await res.json();
+
       if (data.ok) {
         sent++;
+        // ── UPDATE TRACKER for real (non-test) sends ──
         if (!testMode) {
           const real = state.contacts.find(x => x.id === c.id);
-          if (real) { real.lastEmailSent = Date.now(); real.lastEmailType = chosenTemplateKey; if (chosenTemplateKey === 'intro') { real.status = 'contacted'; real.step = 1; } }
+          if (real) {
+            real.lastEmailSent = Date.now();
+            real.lastEmailType = chosenTemplateKey;
+            if (newStatus) real.status = newStatus;
+            // increment step counter
+            real.step = (real.step || 0) + 1;
+          }
         }
         addLog('ok', 'Sent ' + chosenTemplateKey + ' → ' + c.email + (attachments.length ? ` [${attachments.length} attach]` : ''));
       } else {
@@ -1139,24 +1215,42 @@ async function launchCampaign() {
       }
     } catch(e) {
       addLog('err', 'Server not running. Start server.js first.');
-      resultEl.innerHTML = '<span style="color:var(--red)">⚠ Server not running. See Setup Guide.</span>';
+      resultEl.innerHTML = '<div class="warning-notice">⚠ Server not running on port 3333. See Setup Guide → "Running the backend".</div>';
       launchProg.style.display = 'none';
+      btn.disabled = false;
+      updateSendActionBar();
       return;
     }
 
     if (i < targets.length - 1) await sleep(state.sequences.delay * 1000);
   }
 
-  saveState(); updateDashboard(); renderTracker();
-  const msg = `✓ Sent ${sent}${failed ? ', ✗ failed ' + failed : ''}${testMode ? ' (test)' : ''}`;
-  resultEl.innerHTML = `<span style="color:${failed?'var(--amber)':'var(--green)'}">${msg}</span>`;
-  addLog('ok', `Campaign sent: ${sent} ok, ${failed} failed — template: ${chosenTemplateKey}`);
-  showToast(msg, 'success');
+  // ── SAVE + REFRESH ALL VIEWS ──
+  saveState();
+  updateDashboard();
+  renderTracker();
+  renderLaunchTable();  // re-renders so statuses update in the table too
+  renderPreflight();
+
+  launchProg.style.display = 'none';
+  btn.disabled = false;
+  updateSendActionBar();
+
+  const color = failed ? 'var(--amber)' : 'var(--green)';
+  const icon = failed ? '⚠' : '✓';
+  const testTag = testMode ? ' (test — tracker not updated)' : '';
+  resultEl.innerHTML = `<div class="success-notice" style="border-color:${failed ? 'rgba(245,158,11,0.3)' : ''};color:${color}">
+    ${icon} Sent ${sent}${failed ? ` · Failed ${failed}` : ''}${testTag}
+    ${!testMode && sent > 0 ? `<br><span style="font-size:11.5px;opacity:0.8">Tracker updated: ${sent} contact${sent!==1?'s':''} → <strong>${newStatus || 'status updated'}</strong></span>` : ''}
+  </div>`;
+
+  addLog('ok', `Campaign sent: ${sent} ok, ${failed} failed — template: ${chosenTemplateKey}${testMode ? ' [TEST]' : ''}`);
+  showToast(`${icon} ${sent} sent${failed ? ', ' + failed + ' failed' : ''}${testMode ? ' (test)' : ''}`, sent && !failed ? 'success' : 'error');
 }
 
 document.getElementById('test-mode').addEventListener('change', function() {
   document.getElementById('test-addr-wrap').style.display = this.checked ? 'block' : 'none';
-  updateBulkCount();
+  updateSendActionBar();
 });
 
 // ─── TRACKER ───
